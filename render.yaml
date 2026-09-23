@@ -1,0 +1,57 @@
+databases:
+  - name: tempo-db
+    databaseName: tempo
+    user: tempo
+    plan: 0.1c-256mb
+    postgresMajorVersion: "17"
+services:
+  - type: web
+    name: tempo-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements-lock.txt
+    preDeployCommand: python -m alembic upgrade head
+    startCommand: python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT --no-access-log
+    healthCheckPath: /api/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: ENVIRONMENT
+        value: production
+      - key: DATABASE_URL
+        fromDatabase: {name: tempo-db, property: connectionString}
+      - key: SECRET_KEY
+        generateValue: true
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: FRONTEND_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        value: ""
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+  - type: worker
+    name: tempo-reminders
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements-lock.txt
+    startCommand: python -m app.worker
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.10
+      - key: DATABASE_URL
+        fromDatabase: {name: tempo-db, property: connectionString}
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: REMINDER_POLL_INTERVAL_SECONDS
+        value: "10"
