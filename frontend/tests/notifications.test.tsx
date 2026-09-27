@@ -9,6 +9,7 @@ import type { Reminder } from "@/lib/types";
 
 vi.mock("@/components/provider", () => ({
   useAuth: () => ({
+    user: { email: "test@example.com" },
     preferences: { timezone: "Africa/Accra", browser_notifications_enabled: false },
     refresh: vi.fn(),
   }),
@@ -166,4 +167,43 @@ describe("notification controls", () => {
     expect(await screen.findByText("AI assignment")).toBeTruthy();
     expect(screen.queryByText("Tomorrow")).toBeNull();
   });
+});
+
+it("saves stage and in-app preferences", async () => {
+  render(<NotificationSettings />);
+  await screen.findByText(/Email delivery is not configured/);
+  fireEvent.click(screen.getByLabelText("1 hour before"));
+  await waitFor(() =>
+    expect(api.notificationPreferences).toHaveBeenCalledWith({
+      reminder_stages: ["BEFORE_30", "BEFORE_5", "AFTER_10", "END_10"],
+    }),
+  );
+  await waitFor(() =>
+    expect((screen.getByLabelText("In-app notifications") as HTMLInputElement).disabled).toBe(
+      false,
+    ),
+  );
+  fireEvent.click(screen.getByLabelText("In-app notifications"));
+  await waitFor(() =>
+    expect(api.notificationPreferences).toHaveBeenCalledWith({
+      in_app_notifications_enabled: false,
+    }),
+  );
+});
+
+it("uses the signed-in email and enables configured email delivery", async () => {
+  vi.mocked(api.notificationConfig).mockResolvedValue({
+    push_configured: false,
+    vapid_public_key: "",
+    email_configured: true,
+  });
+  render(<NotificationSettings />);
+  await waitFor(() =>
+    expect((screen.getByLabelText("Email reminders") as HTMLInputElement).disabled).toBe(false),
+  );
+  expect(screen.getByText(/Reminder emails will be sent to: test@example.com/)).toBeTruthy();
+  fireEvent.click(screen.getByLabelText("Email reminders"));
+  await waitFor(() =>
+    expect(api.notificationPreferences).toHaveBeenCalledWith({ email_notifications_enabled: true }),
+  );
 });

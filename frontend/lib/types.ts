@@ -41,6 +41,8 @@ export type Reminder = {
   generation: number;
 };
 export type Preferences = {
+  reminder_stages: string[];
+  in_app_notifications_enabled: boolean;
   timezone: string;
   preferred_start_time: string;
   preferred_end_time: string;

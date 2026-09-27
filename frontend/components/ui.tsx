@@ -151,12 +151,16 @@ export function ProposalCard({ proposal, onDone }: { proposal: Proposal; onDone:
               </>
             ) : (
               <>
-                <p>Update your permanent scheduling preferences:</p>
+                <p>
+                  {proposal.kind === "task_reminders"
+                    ? "Update reminder settings for this task:"
+                    : "Update your permanent scheduling preferences:"}
+                </p>
                 <dl>
                   {Object.entries(proposal.payload).map(([key, value]) => (
                     <div key={key}>
                       <dt>{key.replaceAll("_", " ")}</dt>
-                      <dd>{String(value)}</dd>
+                      <dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd>
                     </div>
                   ))}
                 </dl>

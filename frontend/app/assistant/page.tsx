@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+import { useVoice } from "@/lib/use-voice";
+import { Mic, Square, Volume2, Copy, Check, SlidersHorizontal, X } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Message, Proposal, Dashboard } from "@/lib/types";
 import { useAuth } from "@/components/provider";
@@ -37,11 +39,34 @@ export default function Assistant() {
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [input, setInput] = useState("");
+  const dictationBase = useRef("");
+  const voice = useVoice((text) => setInput((dictationBase.current + text).slice(0, 4000)));
+  const [speakingMessage, setSpeakingMessage] = useState<number | null>(null);
+  const [copiedMessage, setCopiedMessage] = useState<number | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
+  const [readResponses, setReadResponses] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const submitting = useRef(false);
   const end = useRef<HTMLDivElement>(null);
   const textarea = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    try {
+      setReadResponses(
+        user?.id != null && localStorage.getItem(`tempo:voice-responses:${user.id}`) === "true",
+      );
+    } catch {
+      setReadResponses(false);
+    }
+  }, [user?.id]);
+  function startVoice() {
+    dictationBase.current = input ? `${input.trimEnd()} ` : "";
+    voice.start();
+  }
+  const listening = voice.state === "Listening";
+  const processing = voice.state === "Processing";
+  const speaking = voice.state === "Speaking";
   const refresh = useCallback(async () => {
     try {
       const [history, pending, day, health] = await Promise.all([
@@ -64,12 +89,20 @@ export default function Assistant() {
     void refresh();
   }, [refresh]);
   useEffect(() => {
-    if (messages.length) end.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (messages.length)
+      end.current?.scrollIntoView({
+        behavior: window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+          ? "auto"
+          : "smooth",
+        block: "nearest",
+      });
   }, [messages, busy]);
   async function send(e: React.FormEvent) {
     e.preventDefault();
-    if (!input.trim() || busy) return;
+    if (!input.trim() || submitting.current || processing || configured === false) return;
+    submitting.current = true;
     const text = input.trim();
+    voice.cancel();
     setBusy(true);
     setError("");
     setInput("");
@@ -80,12 +113,17 @@ export default function Assistant() {
         ...m,
         { role: "assistant", content: result.message, actions: result.actions },
       ]);
+      if (readResponses) {
+        setSpeakingMessage(messages.length + 1);
+        voice.speak(result.message);
+      }
       setProposals(await api.proposals());
       setDashboard(await api.dashboard());
     } catch (e) {
       setError((e as Error).message);
       setInput(text);
     } finally {
+      submitting.current = false;
       setBusy(false);
     }
   }
@@ -114,7 +152,55 @@ export default function Assistant() {
             <strong>Your personal assistant</strong>
             <span className="pill">TEMPO AI</span>
           </div>
-          <span className="muted small">A plan that fits you</span>
+          <div
+            className="assistant-options"
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setOptionsOpen(false);
+                e.currentTarget.querySelector("button")?.focus();
+              }
+            }}
+          >
+            <button
+              type="button"
+              className="assistant-icon"
+              aria-label="Assistant options"
+              title="Assistant options"
+              aria-expanded={optionsOpen}
+              aria-controls="assistant-options"
+              onClick={() => setOptionsOpen(!optionsOpen)}
+            >
+              <SlidersHorizontal size={18} />
+            </button>
+            {optionsOpen && (
+              <div id="assistant-options" className="assistant-options-panel">
+                <strong>Voice responses</strong>
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={readResponses}
+                    onChange={(e) => {
+                      setReadResponses(e.target.checked);
+                      try {
+                        if (user?.id != null)
+                          localStorage.setItem(
+                            `tempo:voice-responses:${user.id}`,
+                            String(e.target.checked),
+                          );
+                      } catch {
+                        setError("Your voice preference could not be saved in this browser.");
+                      }
+                    }}
+                  />{" "}
+                  Automatically read AI responses aloud
+                </label>
+                <p>
+                  Saved for you in this browser. Speech recognition may use your browser’s speech
+                  provider.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
         <div className={`conversation ${messages.length ? "has-messages" : ""}`}>
           {!messages.length && !loading && (
@@ -165,6 +251,56 @@ export default function Assistant() {
               <div>
                 <span className="message-author">{message.role === "user" ? "You" : "Tempo"}</span>
                 <p>{message.content}</p>
+                {message.role === "assistant" && (
+                  <div className="message-actions">
+                    <button
+                      type="button"
+                      className="assistant-icon"
+                      aria-label={
+                        speaking && speakingMessage === i
+                          ? "Stop reading response"
+                          : "Read response aloud"
+                      }
+                      title={
+                        speaking && speakingMessage === i
+                          ? "Stop reading response"
+                          : "Read response aloud"
+                      }
+                      aria-pressed={speaking && speakingMessage === i}
+                      disabled={listening || processing || busy}
+                      onClick={() => {
+                        if (speaking && speakingMessage === i) voice.cancel();
+                        else {
+                          setSpeakingMessage(i);
+                          voice.speak(message.content);
+                        }
+                      }}
+                    >
+                      {speaking && speakingMessage === i ? (
+                        <Square size={15} />
+                      ) : (
+                        <Volume2 size={16} />
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      className="assistant-icon"
+                      aria-label="Copy response"
+                      title="Copy response"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(message.content);
+                          setCopiedMessage(i);
+                        } catch {
+                          setError("Could not copy this response. Select the text to copy it.");
+                        }
+                      }}
+                    >
+                      {copiedMessage === i ? <Check size={16} /> : <Copy size={16} />}
+                    </button>
+                    {copiedMessage === i && <span role="status">Copied</span>}
+                  </div>
+                )}
                 {message.actions.length > 0 && (
                   <details className="action-receipts">
                     <summary>
@@ -176,7 +312,7 @@ export default function Assistant() {
                         {action.ok ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
                         <span>{action.tool.replaceAll("_", " ")}</span>
                         <small>{action.ok ? "Succeeded" : "Failed"}</small>
-                        {!action.ok && <pre>{JSON.stringify(action.result)}</pre>}
+                        {!action.ok && <small>Please try again or rephrase your request.</small>}
                       </div>
                     ))}
                   </details>
@@ -205,32 +341,95 @@ export default function Assistant() {
             </div>
           )}
           <ErrorBox message={error} />
-          <form className="composer" onSubmit={send}>
+          <ErrorBox message={voice.error} />
+          <form className={`composer ${listening ? "is-listening" : ""}`} onSubmit={send}>
             <textarea
               ref={textarea}
               value={input}
-              onChange={(e) => setInput(e.target.value)}
+              onChange={(e) => {
+                if (listening || processing) voice.cancel();
+                setInput(e.target.value);
+              }}
+              readOnly={busy}
               maxLength={4000}
               aria-label="Message your assistant"
-              placeholder="I need to finish an assignment before Friday…"
+              placeholder="Ask Tempo anything…"
               rows={2}
               onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
                   e.preventDefault();
                   e.currentTarget.form?.requestSubmit();
                 }
               }}
             />
-            <div>
-              <span>
-                <Sparkles size={14} /> Your calendar. Your preferences. Your pace.
+            <div className="composer-footer">
+              <span role="status" aria-live="polite" aria-atomic="true">
+                {listening ? (
+                  <>
+                    <span className="voice-wave" aria-hidden="true">
+                      <i />
+                      <i />
+                      <i />
+                    </span>{" "}
+                    Listening…
+                  </>
+                ) : processing || busy ? (
+                  <>
+                    <span className="spinner" /> {busy ? "Thinking…" : "Finishing transcript…"}
+                  </>
+                ) : speaking ? (
+                  <>
+                    <Volume2 size={15} /> Speaking…
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} /> Your context
+                  </>
+                )}
               </span>
-              <button
-                disabled={!input.trim() || busy || configured === false}
-                aria-label="Send message"
-              >
-                <ArrowUp size={20} />
-              </button>
+              <div className="composer-actions">
+                {(listening || processing) && (
+                  <button
+                    type="button"
+                    className="assistant-icon"
+                    onClick={voice.cancel}
+                    aria-label="Cancel voice"
+                    title="Cancel voice"
+                  >
+                    <X size={18} />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={`assistant-icon ${listening || speaking ? "active" : ""}`}
+                  disabled={busy || processing}
+                  onClick={listening ? voice.stop : speaking ? voice.cancel : startVoice}
+                  aria-label={
+                    listening
+                      ? "Stop voice input"
+                      : speaking
+                        ? "Stop playback"
+                        : "Start voice input"
+                  }
+                  title={
+                    listening
+                      ? "Stop voice input"
+                      : speaking
+                        ? "Stop playback"
+                        : "Start voice input"
+                  }
+                >
+                  {listening || speaking ? <Square size={17} /> : <Mic size={19} />}
+                </button>
+                <button
+                  className="send-message"
+                  disabled={!input.trim() || busy || processing || configured === false}
+                  aria-label="Send message"
+                  title="Send message"
+                >
+                  <ArrowUp size={20} />
+                </button>
+              </div>
             </div>
           </form>
           <p className="composer-note">

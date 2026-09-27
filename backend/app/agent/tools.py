@@ -20,6 +20,10 @@ class UpdateTask(Identifier):
     changes: schemas.TaskPatch
 
 
+class TaskReminders(Identifier):
+    changes: schemas.TaskReminderPreferences
+
+
 class UpdateEvent(Identifier):
     event: schemas.EventInput
 
@@ -58,7 +62,7 @@ class Registry:
             "update_user_preference": (
                 schemas.PreferenceInput,
                 "Propose permanent preferences; requires a user click.",
-                lambda a: s.proposal("preferences", a.model_dump()),
+                lambda a: s.proposal("preferences", a.model_dump(exclude_unset=True)),
             ),
             "get_tasks": (
                 Empty,
@@ -147,6 +151,14 @@ class Registry:
                 schemas.ReminderInput,
                 "Create a reminder. For before-session requests provide minutes_before and a retrieved scheduled_task_id; the server calculates the timestamp. Ask about ambiguous times or sessions.",
                 s.create_reminder,
+            ),
+            "configure_task_reminders": (
+                TaskReminders,
+                "Propose task reminder overrides for confirmation. reminder_stages is the complete enabled list; null inherits defaults. email_reminders_enabled=false disables task email. Never calculate stage timestamps.",
+                lambda a: s.proposal(
+                    "task_reminders",
+                    {"task_id": s.own(Task, a.id).id, "changes": a.changes.model_dump(exclude_unset=True)},
+                ),
             ),
             "get_reminders": (
                 Empty,

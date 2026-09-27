@@ -112,7 +112,7 @@ test("real proxy: register, plan, confirm, reminders, reschedule, logout", async
   const calendar = await (await request.get("/api/calendar")).json();
   expect(calendar.sessions).toHaveLength(4);
   expect(calendar.events).toHaveLength(1);
-  expect(await (await request.get("/api/reminders")).json()).toHaveLength(4);
+  expect(await (await request.get("/api/reminders")).json()).toHaveLength(20);
   const moved = await (
     await request.post("/api/calendar/plan", {
       data: {
@@ -134,8 +134,8 @@ test("real proxy: register, plan, confirm, reminders, reschedule, logout", async
     ).status(),
   ).toBe(200);
   const reminders = await (await request.get("/api/reminders")).json();
-  expect(reminders.filter((r: { status: string }) => r.status === "CANCELLED")).toHaveLength(4);
-  expect(reminders.filter((r: { status: string }) => r.status === "PENDING")).toHaveLength(4);
+  expect(reminders.filter((r: { status: string }) => r.status === "CANCELLED")).toHaveLength(0);
+  expect(reminders.filter((r: { status: string }) => r.status === "PENDING")).toHaveLength(20);
   expect((await request.post("/api/auth/logout")).status()).toBe(200);
   expect((await request.get("/api/tasks")).status()).toBe(401);
   expect(
@@ -182,4 +182,9 @@ test("real proxy: missing key and impossible deadline are explicit failures", as
   expect(plan.unscheduled_minutes).toBe(360);
   expect(plan.proposal).toBeUndefined();
   expect((await (await request.get("/api/calendar")).json()).sessions).toHaveLength(0);
+});
+
+test("same-origin microphone permission is allowed", async ({ request }) => {
+  const response = await request.get("/assistant");
+  expect(response.headers()["permissions-policy"]).toContain("microphone=(self)");
 });

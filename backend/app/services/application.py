@@ -10,6 +10,7 @@ from app.db.models import (
     CalendarEvent,
     ScheduledTask,
     Reminder,
+    NotificationDelivery,
     UserActivity,
     Proposal,
     ChatMessage,
@@ -65,14 +66,15 @@ class Application:
     def update_preferences(self, data):
         self.lock()
         pref = self.preferences()
-        if data.email_notifications_enabled:
-            raise HTTPException(422, "Email delivery is not configured")
         for key, value in data.model_dump(exclude_unset=True).items():
             setattr(pref, key, value)
         self.db.flush()
         from app.notifications.strategies import refresh_deadlines
 
         refresh_deadlines(self)
+        from app.notifications.stages import refresh_sessions
+
+        refresh_sessions(self)
         self.activity("PREFERENCE_UPDATED")
         self.db.flush()
         return serialize(pref)
@@ -88,6 +90,17 @@ class Application:
         return serialize(task)
 
     def cancel_sessions(self, task_id):
+        self.db.execute(
+            update(NotificationDelivery)
+            .where(
+                NotificationDelivery.user_id == self.user.id,
+                NotificationDelivery.reminder_id.in_(
+                    select(Reminder.id).where(Reminder.user_id == self.user.id, Reminder.task_id == task_id)
+                ),
+                NotificationDelivery.status.in_(["PENDING", "RETRY", "PROCESSING"]),
+            )
+            .values(status="CANCELLED", lease_token=None, lease_until=None)
+        )
         sessions = self.db.scalars(
             select(ScheduledTask).where(
                 ScheduledTask.user_id == self.user.id,
@@ -102,7 +115,7 @@ class Application:
             .where(
                 Reminder.user_id == self.user.id,
                 Reminder.task_id == task_id,
-                Reminder.status.in_(["PENDING", "SENT", "SNOOZED", "READ"]),
+                Reminder.status.in_(["PENDING", "SNOOZED"]),
             )
             .values(status="CANCELLED")
         )
@@ -129,6 +142,18 @@ class Application:
         from app.notifications.strategies import deadline_reminders
 
         deadline_reminders(self, task)
+        return serialize(task)
+
+    def task_reminder_preferences(self, ident, data):
+        self.lock()
+        task = self.own(Task, ident)
+        for key, value in data.model_dump(exclude_unset=True).items():
+            setattr(task, key, value)
+        self.db.flush()
+        from app.notifications.stages import refresh_sessions
+
+        refresh_sessions(self, task.id)
+        self.activity("TASK_REMINDER_PREFERENCES_UPDATED", {"task_id": task.id})
         return serialize(task)
 
     def delete_task(self, ident):
@@ -367,27 +392,18 @@ class Application:
                 )
             )
         )
+        previous_start = old[0].start_time if old else None
         self.cancel_sessions(task.id)
         pref = self.preferences()
-        for slot in slots:
-            session = ScheduledTask(
-                user_id=self.user.id, task_id=task.id, start_time=slot.start, end_time=slot.end
-            )
+        old.sort(key=lambda session: (session.start_time, session.id))
+        for index, slot in enumerate(slots):
+            session = old[index] if index < len(old) else ScheduledTask(user_id=self.user.id, task_id=task.id)
+            session.start_time, session.end_time, session.status = slot.start, slot.end, "SCHEDULED"
             self.db.add(session)
             self.db.flush()
-            self.db.add(
-                Reminder(
-                    user_id=self.user.id,
-                    task_id=task.id,
-                    scheduled_task_id=session.id,
-                    title=task.title,
-                    kind="SESSION",
-                    reminder_time=max(
-                        utcnow(), slot.start - timedelta(minutes=pref.default_reminder_minutes)
-                    ),
-                    message=f"{task.title}: {slot.minutes}-minute session scheduled for {slot.start.astimezone(ZoneInfo(pref.timezone)).strftime('%d %b at %H:%M')}.",
-                )
-            )
+            from app.notifications.stages import session_reminders
+
+            session_reminders(self, task, session)
         task.status = "SCHEDULED"
         from app.notifications.strategies import deadline_reminders
 
@@ -396,7 +412,7 @@ class Application:
         if old and slots:
             zone = ZoneInfo(pref.timezone)
             detail.update(
-                from_hour=old[0].start_time.astimezone(zone).hour,
+                from_hour=previous_start.astimezone(zone).hour,
                 to_hour=slots[0].start.astimezone(zone).hour,
             )
         self.activity("TASK_RESCHEDULED" if old else "SCHEDULE_ACCEPTED", detail)
@@ -413,7 +429,11 @@ class Application:
             self.activity("SCHEDULE_REJECTED", {"proposal_id": ident})
             return {"message": "Proposal declined", "status": "REJECTED"}
         payload = proposal.payload
-        if proposal.kind == "preferences":
+        if proposal.kind == "task_reminders":
+            self.task_reminder_preferences(
+                payload["task_id"], schemas.TaskReminderPreferences(**payload["changes"])
+            )
+        elif proposal.kind == "preferences":
             self.update_preferences(schemas.PreferenceInput(**payload))
         elif proposal.kind == "dismiss_reminder":
             self.reminder_status(payload["reminder_id"], "DISMISSED")
@@ -461,7 +481,7 @@ class Application:
             .where(
                 Reminder.user_id == self.user.id,
                 Reminder.scheduled_task_id == ident,
-                Reminder.status.in_(["PENDING", "SENT", "SNOOZED", "READ"]),
+                Reminder.status.in_(["PENDING", "SNOOZED"]),
             )
             .values(status="COMPLETED" if status == "COMPLETED" else "CANCELLED")
         )

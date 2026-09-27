@@ -1,0 +1,246 @@
+warning: in the working copy of 'backend/app/core/config.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'backend/app/notifications/email.py', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/app/assistant/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/app/globals.css', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/app/settings/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/components/notification-settings.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/components/ui.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/eslint.config.mjs', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/lib/types.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/next.config.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/tests/notifications.test.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'frontend/tests/proxy.spec.ts', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/.env.example b/.env.example[m
+[1mindex 8e38e5a..069fb38 100644[m
+[1m--- a/.env.example[m
+[1m+++ b/.env.example[m
+[36m@@ -12,3 +12,8 @@[m [mVAPID_PUBLIC_KEY=[m
+ VAPID_PRIVATE_KEY=[m
+ VAPID_SUBJECT=[m
+ REMINDER_POLL_INTERVAL_SECONDS=10[m
+[32m+[m
+[32m+[m[32m# Optional reminder email; configure identically on API and worker.[m
+[32m+[m[32mEMAIL_PROVIDER=[m
+[32m+[m[32mEMAIL_FROM=[m
+[32m+[m[32mRESEND_API_KEY=[m
+[1mdiff --git a/.gitignore b/.gitignore[m
+[1mindex 51593e1..70e97f7 100644[m
+[1m--- a/.gitignore[m
+[1m+++ b/.gitignore[m
+[36m@@ -14,3 +14,5 @@[m [mnode_modules/[m
+ test-results/[m
+ playwright-report/[m
+ *.log[m
+[32m+[m
+[32m+[m[32mfrontend/.next-e2e/[m
+[1mdiff --git a/README.md b/README.md[m
+[1mindex 94420f7..998d1fb 100644[m
+[1m--- a/README.md[m
+[1m+++ b/README.md[m
+[36m@@ -175,7 +175,7 @@[m [mWithin a 60-day activity window, at least three distinct tasks moved from before[m
+ [m
+ ### Reminder delivery[m
+ [m
+[31m-`python -m app.worker` polls every 10 seconds (configurable). Transactional publication makes due and snoozed reminders available in-app, records activity and queues device deliveries in a durable Web Push outbox. Leases, retries and browser occurrence deduplication handle restarts and duplicate execution. The bell and inbox poll every 15 seconds. Browser push requires permission and VAPID configuration; email remains disabled. See [notification setup, architecture and two-minute demo](docs/notifications.md).[m
+[32m+[m[32m`python -m app.worker` polls every 10 seconds (configurable). Transactional publication makes due and snoozed reminders available in-app, records activity and queues device deliveries in a durable Web Push outbox. Leases, retries and browser occurrence deduplication handle restarts and duplicate execution. The bell and inbox poll every 15 seconds. Browser push requires permission and VAPID configuration; email is available with optional server-side provider configuration. See [notification setup, architecture and two-minute demo](docs/notifications.md).[m
+ [m
+ ## Database models and code layout[m
+ [m
+[36m@@ -322,7 +322,15 @@[m [mFor AWS, use the supplied backend image for an ECS/Fargate service and worker, a[m
+ - Local recurring-event creation is explicitly rejected. Google recurrence is expanded during import. Day and week views are implemented; month view is not.[m
+ - Calendar snapshots cannot guarantee protection against changes made concurrently in external Google clients after the final fetch. The app does not claim to reserve time externally.[m
+ - The heuristic scheduler can return an incomplete allocation even where a more complex optimizer could find a solution; it always reports what it actually allocated. Future work can add OR-Tools without changing agent authorization boundaries.[m
+[31m-- Notifications require the worker process. Browser push requires a supported browser, permission, a valid session, VAPID configuration and network access; provider acceptance does not guarantee OS presentation. Email and location sensing are not implemented.[m
+[32m+[m[32m- Notifications require the worker process. Browser push requires a supported browser, permission, a valid session, VAPID configuration and network access; provider acceptance does not guarantee OS presentation. Email requires a configured provider and verified application sender; location sensing is not implemented.[m
+ - LLM-generated explanatory text remains probabilistic. Authoritative action receipts, IDs, proposals and calendar state come from server tools, and mutation success is never inferred by the frontend from prose.[m
+ [m
+ This repository is a deployable implementation with production-oriented safeguards, not a claim of an independently audited or load-tested production service.[m
+[32m+[m
+[32m+[m[32m## Voice and multi-stage reminders[m
+[32m+[m
+[32m+[m[32mThe assistant supports microphone input, editable transcripts, optional response playback and replay. Voice uses the same authenticated chat/tools/proposal flow as text. Browser support varies; typing always remains available.[m
+[32m+[m
+[32m+[m[32mScheduled task sessions receive five deterministic reminder stages by default. Settings controls each stage and in-app, browser and email delivery. Task overrides are available through the assistant (with confirmation) and the authenticated task reminder-preferences API. Email goes from a configured application sender to the registered account address, using the existing durable worker/outbox.[m
+[32m+[m
+[32m+[m[32mSee [voice/reminder setup, migration, local checks and Render/Vercel deployment](docs/voice-reminders.md). No additional dependencies are required. Optional email uses `EMAIL_PROVIDER=resend`, `EMAIL_FROM`, and server-only `RESEND_API_KEY` on both API and worker. Missing optional services do not prevent other notification channels from working.[m
+[1mdiff --git a/backend/.env.example b/backend/.env.example[m
+[1mindex af889f8..a9a35ef 100644[m
+[1m--- a/backend/.env.example[m
+[1m+++ b/backend/.env.example[m
+[36m@@ -21,3 +21,8 @@[m [mVAPID_PUBLIC_KEY=[m
+ VAPID_PRIVATE_KEY=[m
+ VAPID_SUBJECT=[m
+ REMINDER_POLL_INTERVAL_SECONDS=10[m
+[32m+[m
+[32m+[m[32m# Optional reminder email; configure identically on API and worker.[m
+[32m+[m[32mEMAIL_PROVIDER=[m
+[32m+[m[32mEMAIL_FROM=[m
+[32m+[m[32mRESEND_API_KEY=[m
+[1mdiff --git a/backend/app/agent/agent.py b/backend/app/agent/agent.py[m
+[1mindex 5a70456..d330661 100644[m
+[1m--- a/backend/app/agent/agent.py[m
+[1m+++ b/backend/app/agent/agent.py[m
+[36m@@ -19,7 +19,7 @@[m [mUse reschedule_task with excluded_dates when the user cannot work on a local cal[m
+ For moving several tasks together, retrieve matching tasks then use reschedule_multiple_tasks for an atomic batch proposal.[m
+ Permanent preferences, event deletion and event changes are proposals. Do not claim these changes are saved.[m
+ Only create fixed events for explicit user times, never as a shortcut for scheduling tasks.[m
+[31m-For reminders before a session use minutes_before. For today/tomorrow at a local time use local_date and local_time; application code resolves the timezone. Ask whether ambiguous hours mean AM or PM. Use snooze minutes instead of computing a timestamp.[m
+[32m+[m[32mScheduled tasks automatically receive enabled reminder stages. Use create_task reminder_stages/email_reminders_enabled for new task overrides, and configure_task_reminders for existing tasks. Read current preferences and task overrides before changing the complete stage list. Never compute stage timestamps. For additional custom reminders before a session use minutes_before. For today/tomorrow at a local time use local_date and local_time; application code resolves the timezone. Ask whether ambiguous hours mean AM or PM. Use snooze minutes instead of computing a timestamp.[m
+ Do not fabricate a successful action if a tool fails. Explain external failures and any already completed actions.[m
+ Keep answers concise. All schedule cards and action receipts are generated by the server, not by your text.[m
+ """[m
+[1mdiff --git a/backend/app/agent/tools.py b/backend/app/agent/tools.py[m
+[1mindex ea880f6..58e2a0c 100644[m
+[1m--- a/backend/app/agent/tools.py[m
+[1m+++ b/backend/app/agent/tools.py[m
+[36m@@ -20,6 +20,10 @@[m [mclass UpdateTask(Identifier):[m
+     changes: schemas.TaskPatch[m
+ [m
+ [m
+[32m+[m[32mclass TaskReminders(Identifier):[m
+[32m+[m[32m    changes: schemas.TaskReminderPreferences[m
+[32m+[m
+[32m+[m
+ class UpdateEvent(Identifier):[m
+     event: schemas.EventInput[m
+ [m
+[36m@@ -58,7 +62,7 @@[m [mclass Registry:[m
+             "update_user_preference": ([m
+                 schemas.PreferenceInput,[m
+                 "Propose permanent preferences; requires a user click.",[m
+[31m-                lambda a: s.proposal("preferences", a.model_dump()),[m
+[32m+[m[32m                lambda a: s.proposal("preferences", a.model_dump(exclude_unset=True)),[m
+             ),[m
+             "get_tasks": ([m
+                 Empty,[m
+[36m@@ -148,6 +152,14 @@[m [mclass Registry:[m
+                 "Create a reminder. For before-session requests provide minutes_before and a retrieved scheduled_task_id; the server calculates the timestamp. Ask about ambiguous times or sessions.",[m
+                 s.create_reminder,[m
+             ),[m
+[32m+[m[32m            "configure_task_reminders": ([m
+[32m+[m[32m                TaskReminders,[m
+[32m+[m[32m                "Propose task reminder overrides for confirmation. reminder_stages is the complete enabled list; null inherits defaults. email_reminders_enabled=false disables task email. Never calculate stage timestamps.",[m
+[32m+[m[32m                lambda a: s.proposal([m
+[32m+[m[32m                    "task_reminders",[m
+[32m+[m[32m                    {"task_id": s.own(Task, a.id).id, "changes": a.changes.model_dump(exclude_unset=True)},[m
+[32m+[m[32m                ),[m
+[32m+[m[32m            ),[m
+             "get_reminders": ([m
+                 Empty,[m
+                 "Read the user's reminders.",[m
+[1mdiff --git a/backend/app/api/routes.py b/backend/app/api/routes.py[m
+[1mindex 1ea4e76..00c1a96 100644[m
+[1m--- a/backend/app/api/routes.py[m
+[1m+++ b/backend/app/api/routes.py[m
+[36m@@ -91,6 +91,11 @@[m [mdef update_task(ident: int, data: schemas.TaskPatch, s: Service):[m
+     return s.update_task(ident, data)[m
+ [m
+ [m
+[32m+[m[32m@router.patch("/tasks/{ident}/reminder-preferences")[m
+[32m+[m[32mdef task_reminder_preferences(ident: int, data: schemas.TaskReminderPreferences, s: Service):[m
+[32m+[m[32m    return s.task_reminder_preferences(ident, data)[m
+[32m+[m
+[32m+[m
+ @router.delete("/tasks/{ident}", status_code=204)[m
+ def delete_task(ident: int, s: Service):[m
+     s.delete_task(ident)[m
+[36m@@ -152,7 +157,9 @@[m [mdef unread_count(s: Service):[m
+         "count": s.db.scalar([m
+             select(func.count())[m
+             .select_from(Reminder)[m
+[31m-            .where(Reminder.user_id == s.user.id, Reminder.status == "SENT")[m
+[32m+[m[32m            .where([m
+[32m+[m[32m                Reminder.user_id == s.user.id, Reminder.status == "SENT", Reminder.in_app_visible.is_(True)[m
+[32m+[m[32m            )[m
+         )[m
+     }[m
+ [m
+[36m@@ -163,7 +170,11 @@[m [mdef recent_reminders(s: Service):[m
+         serialize(r)[m
+         for r in s.db.scalars([m
+             select(Reminder)[m
+[31m-            .where(Reminder.user_id == s.user.id, Reminder.status.in_(["SENT", "READ"]))[m
+[32m+[m[32m            .where([m
+[32m+[m[32m                Reminder.user_id == s.user.id,[m
+[32m+[m[32m                Reminder.status.in_(["SENT", "READ"]),[m
+[32m+[m[32m                Reminder.in_app_visible.is_(True),[m
+[32m+[m[32m            )[m
+             .order_by(Reminder.sent_at.desc())[m
+             .limit(10)[m
+         )[m
+[36m@@ -201,7 +212,7 @@[m [mdef reminder_deliveries(ident: int, s: Service):[m
+     return [[m
+         {[m
+             "id": d.id,[m
+[31m-            "channel": "push",[m
+[32m+[m[32m            "channel": d.channel,[m
+             "status": d.status,[m
+             "attempts": d.attempts,[m
+             "last_error": d.last_error,[m
+[36m@@ -219,13 +230,15 @@[m [mdef reminder_deliveries(ident: int, s: Service):[m
+ def notification_config(s: Service):[m
+     from app.core.config import settings[m
+ [m
+[32m+[m[32m    from app.notifications.email import email_configured[m
+[32m+[m
+     config = settings()[m
+     return {[m
+         "push_configured": bool([m
+             config.vapid_public_key and config.vapid_private_key and config.vapid_subject[m
+         ),[m
+         "vapid_public_key": config.vapid_public_key,[m
+[31m-        "email_configured": False,[m
+[32m+[m[32m        "email_configured": email_configured(),[m
+     }[m
+ [m
+ [m
+[1mdiff --git a/backend/app/core/config.py b/backend/app/core/config.py[m
+[1mindex bffc0de..970bd6c 100644[m
+[1m--- a/backend/app/core/config.py[m
+[1m+++ b/backend/app/core/config.py[m
+[36m@@ -26,6 +26,9 @@[m [mclass Settings(BaseSettings):[m
+     vapid_public_key: str = ""[m
+     vapid_private_key: str = ""[m
+     vapid_subject: str = ""[m
+[32m+[m[32m    email_provider: str = ""[m
+[32m+[m[32m    email_from: str = ""[m
+[32m+[m[32m    resend_api_key: str = ""[m
+     reminder_poll_interval_seconds: int = Field(default=10, ge=1, le=300)[m
+ [m
+     @field_validator("database_url")[m
+[1mdiff --git a/backend/app/db/models.py b/backend/app/db/models.py[m
+[1mindex 9123b48..9c11df5 100644[m
+[1m--- a/backend/app/db/models.py[m
+[1m+++ b/backend/app/db/models.py[m
+[36m@@ -1,4 +1,4 @@[m
+[31m-from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text, UniqueConstraint[m
+[32m+[m[32mfrom sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, Index, text[m
+ from sqlalchemy.orm import Mapped, mapped_column[m
+ from app.db.database import Base, UTCDateTime, utcnow[m
+ from datetime import datetime[m
+[36m@@ -32,6 +32,10 @@[m [mclass AuthSession(Owned, Base):[m
+ class UserPreference(Owned, Stamp, Base):[m
+     __tablename__ = "user_preferences"[m
+     __table_args__ = (UniqueConstraint("user_id"),)[m
+[32m+[m[32m    reminder_stages: Mapped[list] = mapped_column([m
+[32m+[m[32m        JSON, default=lambda: ["BEFORE_60", "BEFORE_30", "BEFORE_5", "AFTER_10", "END_10"][m
+[32m+[m[32m    )[m
+[32m+[m[32m    in_app_notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)[m
+     timezone: Mapped[str] = mapped_column(String(64), default="Africa/Accra")[m
+     preferred_start_time: Mapped[str] = mapped_column(String(5), default="09:00")[m
+     preferred_end_time: Mapped[str] = mapped_column(String(5), default="17:00")[m
+[36m@@ -48,6 +52,8 @@[m [mclass UserPreference(Owned, Stamp, Base):[m
+ [m
+ class Task(Owned, Stamp, Base):[m
+     __tablename__ = "tasks"[m
+[32m+[m[32m    reminder_stages: Mapped[list | None] = mapped_column(JSON, nullable=True)[m
+[32m+[m[32m    email_reminders_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)[m
+     title: Mapped[str] = mapped_column(String(200))[m
+     description: Mapped[str] = mapped_column(Text, default="")[m
+     priority: Mapped[str] = mapped_column(String(10), default="MEDIUM")[m
+[36m@@ -80,6 +86,9 @@[m [mclass ScheduledTask(Owned, Stamp, Base):[m
+ [m
+ class Reminder(Owned, Stamp, Base):[m
+     __tablename__ = "reminders"[m
+[32m+[m[32m    __table_args__ = (Index("uq_reminder_session_stage", "scheduled_task_id", "stage_key", unique=True),)[m
+[32m+[m[32m    stage_key: Mapped[str | None]

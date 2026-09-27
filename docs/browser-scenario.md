@@ -11,11 +11,13 @@ Also start `python -m app.worker` from `backend` with the same test `DATABASE_UR
 3. Add a fixed event, “Networking Meeting”, next Wednesday 19:00–20:00.
 4. Create “Networking assignment”, duration 240 minutes, with a deadline Friday 23:00.
 5. Select Plan schedule, then Find available time. Verify four one-hour sessions, no overlap with the meeting, and no time past the deadline. Times are computed from the actual test date; do not assert hardcoded dates.
-6. Confirm. Verify the task is Scheduled, the meeting is unchanged, four sessions appear in Calendar, four pending reminders appear in Reminders, and the dashboard/history update.
-7. Replan with Wednesday as “A day to keep free”. Verify no proposed session occurs Wednesday. Confirm. Verify the old reminders are CANCELLED and the four replacement reminders are PENDING.
+6. Confirm. Verify the task is Scheduled, the meeting is unchanged, four sessions appear in Calendar, twenty pending stage reminders appear in Reminders, and the dashboard/history update.
+7. Replan with Wednesday as “A day to keep free”. Verify no proposed session occurs Wednesday. Confirm. Verify the twenty pending stages are reconciled to the replacement session times.
 8. Mark a session done; ensure only remaining work is included in the next proposal. Mark the entire task completed; ensure remaining scheduled sessions and active reminders disappear.
 9. Add a task requiring six hours with a deadline only five minutes away. Verify no fabricated complete plan appears. If a partial plan is possible, verify it is labeled with remaining minutes.
 10. Sign out. Verify private pages require login. Sign in again and check persistence.
 11. Repeat basic navigation at a 390px phone viewport. Verify the menu opens/closes, forms fit, and task/reminder actions are usable. Restore the default viewport afterward.
 
 Natural-language interpretation and Google authorization require external credentials and are separate live-integration checks. The automated scripted-model test validates the agent's tool pipeline without a live API. Never describe that double as a real model call.
+
+For an isolated test build directory alongside a normal development server, set `TEMPO_E2E=1` for Next.js. `python scripts/verify-reminders.py` starts isolated services, disables external providers, runs the proxy suite and stops its processes.

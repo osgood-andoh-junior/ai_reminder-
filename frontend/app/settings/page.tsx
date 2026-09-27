@@ -61,7 +61,9 @@ export default function Settings() {
     const form = new FormData(e.currentTarget);
     const values: Preferences = {
       browser_notifications_enabled: preferences?.browser_notifications_enabled || false,
-      email_notifications_enabled: false,
+      email_notifications_enabled: preferences?.email_notifications_enabled ?? false,
+      in_app_notifications_enabled: preferences?.in_app_notifications_enabled ?? true,
+      reminder_stages: preferences?.reminder_stages ?? [],
       deadline_reminders_enabled: form.has("deadline_reminders_enabled"),
       timezone: String(form.get("timezone")),
       preferred_start_time: String(form.get("preferred_start_time")),
@@ -211,17 +213,21 @@ export default function Settings() {
                 </label>
               </div>
               <label>
-                Remind me before sessions · minutes
+                Legacy reminder offset · minutes
                 <input
                   type="number"
                   min={0}
                   max={10080}
                   required
+                  aria-describedby="legacy-reminder-hint"
                   name="default_reminder_minutes"
                   value={draft.default_reminder_minutes}
                   onChange={(e) => field("default_reminder_minutes", Number(e.target.value))}
                 />
               </label>
+              <p id="legacy-reminder-hint" className="form-hint">
+                Automatic session reminders use the stage controls in Notifications below.
+              </p>
               <label className="check-label">
                 <input
                   type="checkbox"

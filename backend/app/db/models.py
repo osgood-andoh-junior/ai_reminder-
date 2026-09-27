@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, Integer, JSON, String, Text, UniqueConstraint, Index, text
 from sqlalchemy.orm import Mapped, mapped_column
 from app.db.database import Base, UTCDateTime, utcnow
 from datetime import datetime
@@ -32,6 +32,10 @@ class AuthSession(Owned, Base):
 class UserPreference(Owned, Stamp, Base):
     __tablename__ = "user_preferences"
     __table_args__ = (UniqueConstraint("user_id"),)
+    reminder_stages: Mapped[list] = mapped_column(
+        JSON, default=lambda: ["BEFORE_60", "BEFORE_30", "BEFORE_5", "AFTER_10", "END_10"]
+    )
+    in_app_notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     timezone: Mapped[str] = mapped_column(String(64), default="Africa/Accra")
     preferred_start_time: Mapped[str] = mapped_column(String(5), default="09:00")
     preferred_end_time: Mapped[str] = mapped_column(String(5), default="17:00")
@@ -48,6 +52,8 @@ class UserPreference(Owned, Stamp, Base):
 
 class Task(Owned, Stamp, Base):
     __tablename__ = "tasks"
+    reminder_stages: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    email_reminders_enabled: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     title: Mapped[str] = mapped_column(String(200))
     description: Mapped[str] = mapped_column(Text, default="")
     priority: Mapped[str] = mapped_column(String(10), default="MEDIUM")
@@ -80,6 +86,9 @@ class ScheduledTask(Owned, Stamp, Base):
 
 class Reminder(Owned, Stamp, Base):
     __tablename__ = "reminders"
+    __table_args__ = (Index("uq_reminder_session_stage", "scheduled_task_id", "stage_key", unique=True),)
+    stage_key: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    in_app_visible: Mapped[bool] = mapped_column(Boolean, default=True)
     task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True)
     scheduled_task_id: Mapped[int | None] = mapped_column(
         ForeignKey("scheduled_tasks.id", ondelete="CASCADE"), nullable=True
@@ -109,9 +118,25 @@ class NotificationDelivery(Owned, Stamp, Base):
     """Durable outbox, one delivery per reminder occurrence and device."""
 
     __tablename__ = "notification_deliveries"
-    __table_args__ = (UniqueConstraint("reminder_id", "generation", "subscription_id"),)
+    __table_args__ = (
+        UniqueConstraint("reminder_id", "generation", "subscription_id"),
+        Index(
+            "uq_email_occurrence",
+            "reminder_id",
+            "generation",
+            unique=True,
+            sqlite_where=text("channel = 'email'"),
+            postgresql_where=text("channel = 'email'"),
+        ),
+    )
     reminder_id: Mapped[int] = mapped_column(ForeignKey("reminders.id", ondelete="CASCADE"), index=True)
-    subscription_id: Mapped[int] = mapped_column(ForeignKey("push_subscriptions.id", ondelete="CASCADE"))
+    subscription_id: Mapped[int | None] = mapped_column(
+        ForeignKey("push_subscriptions.id", ondelete="CASCADE"), nullable=True
+    )
+    channel: Mapped[str] = mapped_column(String(10), default="push")
+    idempotency_key: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    retry_deadline: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
     generation: Mapped[int] = mapped_column(default=0)
     status: Mapped[str] = mapped_column(String(20), default="PENDING", index=True)
     attempts: Mapped[int] = mapped_column(default=0)
