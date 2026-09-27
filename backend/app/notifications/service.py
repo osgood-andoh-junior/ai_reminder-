@@ -1,10 +1,20 @@
-"""Transactional in-app delivery and a leased, retryable Web Push outbox."""
+"""Transactional in-app delivery and a leased, retryable push/email outbox."""
 
 from datetime import timedelta
 from uuid import uuid4
 from sqlalchemy import select, update, or_, and_
 from app.db.database import utcnow
-from app.db.models import Reminder, User, UserPreference, PushSubscription, NotificationDelivery
+from app.db.models import (
+    Reminder,
+    User,
+    UserPreference,
+    PushSubscription,
+    NotificationDelivery,
+    Task,
+    ScheduledTask,
+)
+from app.core.config import settings
+from app.notifications.email import EmailNotificationChannel
 from app.notifications.in_app import InAppNotifications, record
 from app.notifications.push import PushNotificationChannel, DeliveryError
 
@@ -31,9 +41,33 @@ def publish_due(db, now=None):
         )
         if reminder is None:
             continue
+        if not active_reminder(db, reminder):
+            reminder.status = "CANCELLED"
+            continue
         InAppNotifications().deliver(reminder, {"now": now})
         record(db, reminder, "REMINDER_SENT", channel="in_app")
         preference = db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
+        reminder.in_app_visible = preference.in_app_notifications_enabled
+        task = db.get(Task, reminder.task_id, populate_existing=True) if reminder.task_id else None
+        if preference.email_notifications_enabled and (not task or task.email_reminders_enabled is not False):
+            user = db.get(User, user_id)
+            db.add(
+                NotificationDelivery(
+                    user_id=user_id,
+                    reminder_id=ident,
+                    generation=reminder.generation,
+                    channel="email",
+                    idempotency_key=uuid4().hex,
+                    next_attempt_at=now,
+                    retry_deadline=now + timedelta(hours=23),
+                    payload={
+                        "from": settings().email_from,
+                        "to": [user.email],
+                        "subject": f"Tempo: {reminder.title}",
+                        "text": reminder.message,
+                    },
+                )
+            )
         if preference.browser_notifications_enabled:
             for sub in db.scalars(
                 select(PushSubscription).where(
@@ -54,9 +88,22 @@ def publish_due(db, now=None):
     return count
 
 
-def process_outbox(db, channel=None, now=None):
+def active_reminder(db, reminder):
+    if reminder.task_id:
+        task = db.get(Task, reminder.task_id, populate_existing=True)
+        if not task or task.user_id != reminder.user_id or task.status in {"COMPLETED", "CANCELLED"}:
+            return False
+    if reminder.scheduled_task_id:
+        session = db.get(ScheduledTask, reminder.scheduled_task_id, populate_existing=True)
+        if not session or session.user_id != reminder.user_id or session.status != "SCHEDULED":
+            return False
+    return True
+
+
+def process_outbox(db, channel=None, now=None, email_channel=None):
     now = now or utcnow()
     channel = channel or PushNotificationChannel()
+    email_channel = email_channel or EmailNotificationChannel()
     ready = or_(
         and_(
             NotificationDelivery.status.in_(["PENDING", "RETRY"]), NotificationDelivery.next_attempt_at <= now
@@ -91,7 +138,11 @@ def process_outbox(db, channel=None, now=None):
             db.commit()
             continue
         reminder = db.get(Reminder, item.reminder_id, populate_existing=True)
-        sub = db.get(PushSubscription, item.subscription_id, populate_existing=True)
+        sub = (
+            db.get(PushSubscription, item.subscription_id, populate_existing=True)
+            if item.subscription_id
+            else None
+        )
         preference = db.scalar(
             select(UserPreference)
             .where(UserPreference.user_id == item.user_id)
@@ -99,37 +150,58 @@ def process_outbox(db, channel=None, now=None):
         )
         if (
             not reminder
-            or not sub
-            or not sub.active
-            or not preference.browser_notifications_enabled
+            or reminder.user_id != item.user_id
+            or not active_reminder(db, reminder)
+            or (
+                item.channel == "push"
+                and (
+                    not sub
+                    or sub.user_id != item.user_id
+                    or not sub.active
+                    or not preference.browser_notifications_enabled
+                )
+            )
+            or (
+                item.channel == "email"
+                and (
+                    not preference.email_notifications_enabled
+                    or (reminder.task_id and db.get(Task, reminder.task_id).email_reminders_enabled is False)
+                )
+            )
             or reminder.generation != item.generation
-            or reminder.status != "SENT"
+            or reminder.status not in {"SENT", "READ"}
         ):
             item.status = "CANCELLED"
         else:
             try:
-                channel.deliver(
-                    sub, {"reminder_id": reminder.id, "generation": item.generation, "user_id": item.user_id}
-                )
+                if item.channel == "email":
+                    if not item.retry_deadline or now >= item.retry_deadline:
+                        raise DeliveryError("email_retry_window_expired", retryable=False)
+                    email_channel.send_reminder(item.payload, item.idempotency_key)
+                else:
+                    channel.deliver(
+                        sub,
+                        {"reminder_id": reminder.id, "generation": item.generation, "user_id": item.user_id},
+                    )
                 item.status, item.sent_at, item.last_error = "SENT", now, None
-                record(db, reminder, "REMINDER_PUSH_ACCEPTED", delivery_id=item.id)
+                record(db, reminder, "REMINDER_" + item.channel.upper() + "_ACCEPTED", delivery_id=item.id)
                 delivered += 1
             except Exception as exc:
                 failure = (
                     exc
                     if isinstance(exc, DeliveryError)
-                    else DeliveryError("push_internal_error", retryable=False)
+                    else DeliveryError(item.channel + "_internal_error", retryable=False)
                 )
                 item.last_error = failure.code
                 item.status = "RETRY" if failure.retryable and item.attempts < 5 else "FAILED"
                 item.next_attempt_at = now + timedelta(seconds=min(30 * 2 ** (item.attempts - 1), 1800))
-                if failure.expired:
+                if failure.expired and sub:
                     sub.active = False
                 record(
                     db,
                     reminder,
                     "REMINDER_FAILED",
-                    channel="push",
+                    channel=item.channel,
                     delivery_id=item.id,
                     code=failure.code,
                     retry=item.status == "RETRY",

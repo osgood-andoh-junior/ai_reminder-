@@ -2473,3 +2473,244 @@ label small {
     flex-wrap: wrap;
   }
 }
+
+/* Optional voice controls and reminder preferences. */
+.voice-controls {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.voice-controls label {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.panel-body fieldset {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 12px;
+}
+.panel-body fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.65rem 0;
+}
+/* Assistant: one surface for typing, dictation, and playback. */
+.assistant-page {
+  height: calc(100dvh - 70px);
+  min-height: 0;
+}
+.assistant-main {
+  height: 100%;
+  min-height: 0;
+}
+.assistant-toolbar,
+.composer-wrap {
+  flex-shrink: 0;
+}
+.day-panel {
+  overflow-y: auto;
+}
+.conversation {
+  overscroll-behavior: contain;
+}
+.composer-wrap {
+  background: var(--paper);
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+}
+.composer:focus-within {
+  border-color: #9781b5;
+  box-shadow: 0 0 0 3px #9781b514;
+}
+.composer textarea {
+  font-size: 14px;
+  min-height: 58px;
+}
+.composer .composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.assistant-page .assistant-icon,
+.composer .send-message {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.assistant-page .assistant-icon {
+  background: transparent;
+  color: #78648c;
+  border: 0;
+}
+.assistant-page .assistant-icon:hover {
+  background: #eee8f5;
+}
+.assistant-page .assistant-icon.active,
+.assistant-page .assistant-icon[aria-pressed="true"] {
+  background: #eee5f8;
+  color: #705096;
+}
+.composer .send-message {
+  background: #8770a9;
+}
+.assistant-page button:focus-visible,
+.assistant-page summary:focus-visible {
+  outline: 2px solid #80619f;
+  outline-offset: 3px;
+}
+.composer.is-listening {
+  border-color: #a084bf;
+}
+.voice-wave {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+}
+.voice-wave i {
+  width: 3px;
+  height: 8px;
+  border-radius: 3px;
+  background: #9273b3;
+  animation: tempo-voice 1s ease-in-out infinite alternate;
+}
+.voice-wave i:nth-child(2) {
+  height: 16px;
+  animation-delay: 0.2s;
+}
+.voice-wave i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+@keyframes tempo-voice {
+  to {
+    transform: scaleY(0.45);
+    opacity: 0.6;
+  }
+}
+.assistant-options {
+  position: relative;
+}
+.assistant-options-panel {
+  position: absolute;
+  right: 0;
+  top: 48px;
+  width: min(290px, calc(100vw - 40px));
+  padding: 20px;
+  background: #fffefd;
+  border: 1px solid #e8e1ef;
+  border-radius: 14px;
+  box-shadow: 0 12px 35px #39234316;
+  z-index: 20;
+}
+.assistant-options-panel label {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 16px;
+  font-size: 12px;
+  line-height: 1.6;
+  cursor: pointer;
+}
+.assistant-options-panel input {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  accent-color: #8770a9;
+  flex-shrink: 0;
+}
+.assistant-options-panel p {
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin: 12px 0 0;
+}
+.message {
+  max-width: 740px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.message > div {
+  min-width: 0;
+  flex: 1;
+}
+.message p {
+  overflow-wrap: anywhere;
+  line-height: 1.8;
+}
+.message.user {
+  background: #f3eff6;
+  border-radius: 12px;
+  padding: 18px;
+}
+.message-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-top: 6px;
+}
+.message-actions > span {
+  font-size: 11px;
+  color: var(--muted);
+}
+.action-receipts {
+  margin-top: 8px;
+}
+.prompt-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+.prompt-grid .prompt-card {
+  min-height: 44px;
+  flex-direction: row;
+  align-items: center;
+  padding: 10px 14px;
+  gap: 8px;
+  border-radius: 24px;
+}
+.prompt-card svg:last-child {
+  display: none;
+}
+.prompt-card strong {
+  font-size: 11px;
+}
+@media (max-width: 720px) {
+  .assistant-page {
+    height: calc(100dvh - 60px);
+    min-height: 0;
+  }
+  .assistant-main {
+    height: 100%;
+  }
+  .assistant-toolbar {
+    padding: 12px 16px;
+  }
+  .assistant-toolbar .pill {
+    display: none;
+  }
+  .composer textarea {
+    font-size: 16px;
+  }
+  .composer > div > span {
+    font-size: 10px;
+  }
+  .composer {
+    padding: 12px;
+  }
+  .conversation {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .message {
+    gap: 10px;
+  }
+}

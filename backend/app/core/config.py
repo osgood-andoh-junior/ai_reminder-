@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     vapid_public_key: str = ""
     vapid_private_key: str = ""
     vapid_subject: str = ""
+    email_provider: str = ""
+    email_from: str = ""
+    resend_api_key: str = ""
     reminder_poll_interval_seconds: int = Field(default=10, ge=1, le=300)
 
     @field_validator("database_url")

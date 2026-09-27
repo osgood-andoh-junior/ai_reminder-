@@ -11,7 +11,7 @@ import { useAuth } from "./provider";
 import { ErrorBox } from "./ui";
 
 export function NotificationSettings() {
-  const { preferences, refresh } = useAuth();
+  const { user, preferences, refresh } = useAuth();
   const [supported, setSupported] = useState(false);
   const [permission, setPermission] = useState<NotificationPermission>("default");
   const [subscribed, setSubscribed] = useState(false);
@@ -82,6 +82,26 @@ export function NotificationSettings() {
       setBusy(false);
     }
   }
+  async function save(values: Partial<import("@/lib/types").Preferences>) {
+    setBusy(true);
+    setError("");
+    try {
+      await api.notificationPreferences(values);
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const stages = [
+    ["BEFORE_60", "1 hour before"],
+    ["BEFORE_30", "30 minutes before"],
+    ["BEFORE_5", "5 minutes before"],
+    ["AFTER_10", "10 minutes after start"],
+    ["END_10", "10 minutes before completion"],
+  ];
+  const enabled = preferences?.reminder_stages || stages.map(([key]) => key);
   return (
     <section className="panel">
       <div className="panel-heading">
@@ -89,7 +109,7 @@ export function NotificationSettings() {
       </div>
       <div className="panel-body">
         <p>
-          In-app reminders are always available. Browser push can reach you when this tab is in the
+          Choose your reminder delivery channels. Browser push can reach you when this tab is in the
           background.
         </p>
         <p role="status">
@@ -124,7 +144,52 @@ export function NotificationSettings() {
             Enable browser notifications
           </button>
         )}
-        <p className="form-hint">Email delivery is not configured. No emails will be sent.</p>
+        <fieldset disabled={busy}>
+          <legend>Reminder delivery</legend>
+          <label>
+            <input
+              type="checkbox"
+              checked={preferences?.in_app_notifications_enabled ?? true}
+              onChange={(e) => void save({ in_app_notifications_enabled: e.target.checked })}
+            />{" "}
+            In-app notifications
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              disabled={!config?.email_configured && !preferences?.email_notifications_enabled}
+              checked={preferences?.email_notifications_enabled ?? false}
+              onChange={(e) => void save({ email_notifications_enabled: e.target.checked })}
+            />{" "}
+            Email reminders
+          </label>
+          <p>Reminder emails will be sent to: {user?.email}</p>
+          {!config?.email_configured && (
+            <p className="form-hint">Email delivery is not configured. No emails will be sent.</p>
+          )}
+        </fieldset>
+        <fieldset disabled={busy}>
+          <legend>Default reminder stages</legend>
+          {stages.map(([key, label]) => (
+            <label key={key}>
+              <input
+                type="checkbox"
+                checked={enabled.includes(key)}
+                onChange={(e) =>
+                  void save({
+                    reminder_stages: e.target.checked
+                      ? [...enabled, key]
+                      : enabled.filter((stage) => stage !== key),
+                  })
+                }
+              />{" "}
+              {label}
+            </label>
+          ))}
+          <p className="form-hint">
+            Changes update pending session reminders. Ask the assistant to customize a task.
+          </p>
+        </fieldset>
         <ErrorBox message={error} />
         {notice && <p role="status">{notice}</p>}
       </div>

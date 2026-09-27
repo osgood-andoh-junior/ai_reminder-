@@ -79,16 +79,16 @@ def test_complete_flow(authenticated, database):
     assert accepted.status_code == 200, accepted.text
     assert c.post(f"/api/proposals/{proposal_id}/decision", json={"accept": True}).status_code == 409
     assert len(c.get("/api/calendar").json()["sessions"]) == 4
-    assert len(c.get("/api/reminders").json()) == 4
+    assert len(c.get("/api/reminders").json()) == 20
     assert c.get("/api/dashboard").json()["summary"]["scheduled"] == 1
-    # Reschedule away from the first allocated day; old reminders are cancelled.
+    # Reschedule away from the first allocated day; pending stage times are reconciled.
     day = plan["slots"][0]["start"][:10]
     moved = c.post("/api/calendar/plan", json={"task_id": item["id"], "excluded_dates": [day]}).json()
     assert all(s["start"][:10] != day for s in moved["slots"])
     assert (
         c.post(f"/api/proposals/{moved['proposal']['id']}/decision", json={"accept": True}).status_code == 200
     )
-    assert any(r["status"] == "CANCELLED" for r in c.get("/api/reminders").json())
+    assert all(r["reminder_time"][:10] != day for r in c.get("/api/reminders").json() if r["status"] == "PENDING")
     assert c.patch(f"/api/tasks/{item['id']}", json={"status": "COMPLETED"}).status_code == 200
     assert not c.get("/api/calendar").json()["sessions"]
     assert c.get("/api/dashboard").json()["summary"]["completed"] == 1

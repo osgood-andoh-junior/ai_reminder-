@@ -175,7 +175,7 @@ Within a 60-day activity window, at least three distinct tasks moved from before
 
 ### Reminder delivery
 
-`python -m app.worker` polls every 10 seconds (configurable). Transactional publication makes due and snoozed reminders available in-app, records activity and queues device deliveries in a durable Web Push outbox. Leases, retries and browser occurrence deduplication handle restarts and duplicate execution. The bell and inbox poll every 15 seconds. Browser push requires permission and VAPID configuration; email remains disabled. See [notification setup, architecture and two-minute demo](docs/notifications.md).
+`python -m app.worker` polls every 10 seconds (configurable). Transactional publication makes due and snoozed reminders available in-app, records activity and queues device deliveries in a durable Web Push outbox. Leases, retries and browser occurrence deduplication handle restarts and duplicate execution. The bell and inbox poll every 15 seconds. Browser push requires permission and VAPID configuration; email is available with optional server-side provider configuration. See [notification setup, architecture and two-minute demo](docs/notifications.md).
 
 ## Database models and code layout
 
@@ -322,7 +322,15 @@ For AWS, use the supplied backend image for an ECS/Fargate service and worker, a
 - Local recurring-event creation is explicitly rejected. Google recurrence is expanded during import. Day and week views are implemented; month view is not.
 - Calendar snapshots cannot guarantee protection against changes made concurrently in external Google clients after the final fetch. The app does not claim to reserve time externally.
 - The heuristic scheduler can return an incomplete allocation even where a more complex optimizer could find a solution; it always reports what it actually allocated. Future work can add OR-Tools without changing agent authorization boundaries.
-- Notifications require the worker process. Browser push requires a supported browser, permission, a valid session, VAPID configuration and network access; provider acceptance does not guarantee OS presentation. Email and location sensing are not implemented.
+- Notifications require the worker process. Browser push requires a supported browser, permission, a valid session, VAPID configuration and network access; provider acceptance does not guarantee OS presentation. Email requires a configured provider and verified application sender; location sensing is not implemented.
 - LLM-generated explanatory text remains probabilistic. Authoritative action receipts, IDs, proposals and calendar state come from server tools, and mutation success is never inferred by the frontend from prose.
 
 This repository is a deployable implementation with production-oriented safeguards, not a claim of an independently audited or load-tested production service.
+
+## Voice and multi-stage reminders
+
+The assistant supports microphone input, editable transcripts, optional response playback and replay. Voice uses the same authenticated chat/tools/proposal flow as text. Browser support varies; typing always remains available.
+
+Scheduled task sessions receive five deterministic reminder stages by default. Settings controls each stage and in-app, browser and email delivery. Task overrides are available through the assistant (with confirmation) and the authenticated task reminder-preferences API. Email goes from a configured application sender to the registered account address, using the existing durable worker/outbox.
+
+See [voice/reminder setup, migration, local checks and Render/Vercel deployment](docs/voice-reminders.md). No additional dependencies are required. Optional email uses `EMAIL_PROVIDER=resend`, `EMAIL_FROM`, and server-only `RESEND_API_KEY` on both API and worker. Missing optional services do not prevent other notification channels from working.

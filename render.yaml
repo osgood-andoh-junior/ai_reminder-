@@ -30,6 +30,12 @@ services:
         value: ""
       - key: OPENAI_MODEL
         value: gpt-4.1-mini
+      - key: EMAIL_PROVIDER
+        value: ""
+      - key: EMAIL_FROM
+        value: ""
+      - key: RESEND_API_KEY
+        value: ""
       - key: VAPID_PUBLIC_KEY
         sync: false
       - key: VAPID_PRIVATE_KEY
@@ -47,6 +53,12 @@ services:
         value: 3.12.10
       - key: DATABASE_URL
         fromDatabase: {name: tempo-db, property: connectionString}
+      - key: EMAIL_PROVIDER
+        value: ""
+      - key: EMAIL_FROM
+        value: ""
+      - key: RESEND_API_KEY
+        value: ""
       - key: VAPID_PUBLIC_KEY
         sync: false
       - key: VAPID_PRIVATE_KEY

@@ -2,9 +2,9 @@
 
 ## Architecture
 
-The existing `Reminder` model remains the source of truth. Scheduling creates reminders with deterministic times based on the user's existing default reminder offset. Creation is not delivery: the separate worker changes due `PENDING` or `SNOOZED` reminders to `SENT`, records activity and queues push deliveries in the same transaction. The frontend never decides when a reminder is due. No OpenAI request is involved in execution.
+The existing `Reminder` model remains the source of truth. Scheduling creates five deterministic stages by default: 60, 30 and 5 minutes before start, 10 minutes after start, and 10 minutes before end. See [voice and reminder deployment](voice-reminders.md) for configuration and edge cases. Creation is not delivery: the separate worker changes due `PENDING` or `SNOOZED` reminders to `SENT`, records activity and queues push/email deliveries in the same transaction. The frontend never decides when a reminder is due. No OpenAI request is involved in execution.
 
-In-app notifications use the reminder itself, avoiding a second notification inbox. `SENT` means unread in-app; `READ`, `DISMISSED`, `SNOOZED`, `COMPLETED` and `CANCELLED` retain useful history. Snooze increments an occurrence generation and keeps the original reminder time. Push failure is tracked separately on `NotificationDelivery`, so it never turns a successfully published in-app notification into a failed reminder.
+In-app notifications use the reminder itself, avoiding a second notification inbox. `SENT` means published; `in_app_visible` controls whether it appears in the inbox. Visible `SENT` means unread in-app; `READ`, `DISMISSED`, `SNOOZED`, `COMPLETED` and `CANCELLED` retain useful history. Snooze increments an occurrence generation and keeps the original reminder time. Push failure is tracked separately on `NotificationDelivery`, so it never turns a successfully published in-app notification into a failed reminder.
 
 The bell polls unread count and recent deliveries every 15 seconds, refreshes on focus and after mutations, and responds to service-worker messages. The Reminders page has Upcoming, Unread, Snoozed, Past and All tabs. Bell and page actions use the same authenticated APIs.
 
@@ -12,12 +12,12 @@ The bell polls unread count and recent deliveries every 15 seconds, refreshes on
 
 - Due publication uses the same user write locks as reminder mutations, with stable lock ordering. This works with SQLite and PostgreSQL. A unique outbox constraint prevents duplicate device/occurrence jobs.
 - Workers claim push jobs with an atomic conditional update and a two-minute lease. Interrupted leases can be recovered after restart. Failed requests retry with exponential backoff, up to five attempts; expired 404/410 subscriptions become inactive.
-- Read, dismissed, cancelled, rescheduled or newly snoozed reminders invalidate stale delivery jobs. Push failure never prevents other jobs or in-app publication.
+- Dismissed, cancelled, rescheduled or newly snoozed reminders invalidate stale delivery jobs. Push failure never prevents other jobs or in-app publication.
 - External delivery cannot offer transactional exactly-once semantics: a process can die after the push provider accepts a request but before committing its acknowledgement. Stable notification tags and a seven-day IndexedDB occurrence ledger suppress duplicate browser display across retries/restarts. Clearing browser storage resets that ledger.
 - Provider acceptance is recorded as `REMINDER_PUSH_ACCEPTED`, not proof that an OS displayed the notification. Browser support, permission, connectivity, OS quiet modes and browser background policies still control presentation.
 - The service worker receives only reminder/user IDs and generation, then fetches the reminder under the current session before displaying content. Logout removes the current device subscription; an expired or different account cannot retrieve the old reminder's content. Stay signed in for push delivery. The backend must remain reachable when the push arrives.
-- In-app content is always available after delivery. The worker must be running; sleeping or shutting down the host prevents local execution until restart. Overdue reminders publish on the next worker pass.
-- Email is explicitly disabled. `EmailNotificationChannel` is an extension point that raises a configuration error, never a fake success. A future provider should use a separate channel outbox with provider idempotency keys, retries and verified recipient addresses.
+- In-app alerts are optional; the Reminders page retains reminder history. The worker must be running; sleeping or shutting down the host prevents local execution until restart. Overdue reminders publish on the next worker pass.
+- Email uses the same outbox with the Resend provider, immutable payloads and idempotency keys. Configure the application sender and provider key on both API and worker. The recipient comes only from the authenticated account. See [configuration and retry limits](voice-reminders.md).
 
 ## Configuration
 
@@ -61,7 +61,7 @@ Open `http://localhost:3000` consistently; `localhost` and `127.0.0.1` are diffe
 5. Wait for the second occurrence. The unread count increases again; its generation differs from the first delivery, so duplicate suppression allows the snoozed notification.
 6. Choose **Dismiss**. The unread count drops, and the reminder remains in **Past** with its dismissed status. Settings → Recent activity includes the sent/snoozed/dismissed actions.
 
-To demonstrate scheduling integration, first set **Remind me before sessions · minutes** to 1 or 2 and save. Create a short task, select **Plan schedule**, review the real proposed start and confirm. A session reminder is created automatically. The scheduler uses 15-minute candidate boundaries, so this route may require longer than two minutes. For a custom relative reminder, tell the Assistant “Remind me one minute before [task name]”; it reads actual sessions and uses `minutes_before` in the reminder tool. If there are multiple sessions it asks which one.
+To demonstrate scheduling integration, enable the desired **Default reminder stages** in Settings. Create a short task, select **Plan schedule**, review the real proposed start and confirm. A session reminder is created automatically. The scheduler uses 15-minute candidate boundaries, so this route may require longer than two minutes. For a custom relative reminder, tell the Assistant “Remind me one minute before [task name]”; it reads actual sessions and uses `minutes_before` in the reminder tool. If there are multiple sessions it asks which one.
 
 The Assistant can also create “tomorrow at 08:00” using `local_date`/`local_time`, snooze via minutes and propose dismissal for confirmation. Application code resolves dates in the stored timezone; ambiguous/nonexistent DST times are rejected.
 
@@ -77,13 +77,13 @@ Existing `GET/POST /api/reminders` and `PATCH /api/reminders/{id}` remain suppor
 | `POST /api/reminders/{id}/read` | Mark delivered reminder read |
 | `POST /api/reminders/{id}/dismiss` | Dismiss while retaining history |
 | `POST /api/reminders/{id}/snooze` | `{minutes: 30}` or `{until: "offset timestamp"}` |
-| `GET /api/reminders/{id}/deliveries` | Push attempts, status and safe error codes |
+| `GET /api/reminders/{id}/deliveries` | Push/email attempts, status and safe error codes |
 | `GET /api/notifications/config` | Configuration state and public VAPID key only |
 | `POST /api/notifications/subscriptions` | Register the current user's device |
 | `GET /api/notifications/subscriptions` | Owned device IDs and active state, no endpoint secrets |
 | `POST /api/notifications/subscriptions/remove` | Remove current browser endpoint binding |
 | `DELETE /api/notifications/subscriptions/{id}` | Deactivate an owned device |
-| `PATCH /api/preferences/notifications` | Browser/deadline opt-in and default reminder offset |
+| `PATCH /api/preferences/notifications` | Stage preferences and in-app/browser/email/deadline opt-in |
 
 Mutation routes retain cookie authentication, ownership checks and the `X-Requested-With: Tempo` CSRF header. Push endpoints allow known browser push providers only, validate encryption keys, block redirects and reject local/arbitrary HTTP targets. Raw endpoints/keys are never included in the subscription listing.
 
@@ -104,7 +104,7 @@ Web Push references: [MDN Push API](https://developer.mozilla.org/en-US/docs/Web
 - **Embedded browser reports `jmt17.google.com`:** this is Chromium's old staging push endpoint, documented as deprecated in the [Chromium endpoint change](https://chromium.googlesource.com/chromium/src.git/+/40644b8cf2b03be542976e7d1192c653e389c14e). Use a regular supported browser for the OS notification demo. Do not rewrite subscription endpoints or disable endpoint validation.
 - **Push accepted but no OS popup:** check OS notification settings/Focus Assist, browser background execution, session validity and connectivity to Tempo. Read delivery status through the owned deliveries endpoint. In-app notifications remain available.
 - **`push_http_410` / `push_http_404`:** subscription expired. Enable notifications again. Persistent 401/403 errors usually indicate mismatched VAPID configuration; correct keys and resubscribe.
-- **Email checkbox:** email is intentionally unavailable until a provider is implemented; enabling it via the preference API is rejected.
+- **Email checkbox:** configure EMAIL_PROVIDER, EMAIL_FROM and RESEND_API_KEY on API and worker. The recipient is the signed-in account email.
 
 ## File report
 

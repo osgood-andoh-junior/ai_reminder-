@@ -91,6 +91,11 @@ def update_task(ident: int, data: schemas.TaskPatch, s: Service):
     return s.update_task(ident, data)
 
 
+@router.patch("/tasks/{ident}/reminder-preferences")
+def task_reminder_preferences(ident: int, data: schemas.TaskReminderPreferences, s: Service):
+    return s.task_reminder_preferences(ident, data)
+
+
 @router.delete("/tasks/{ident}", status_code=204)
 def delete_task(ident: int, s: Service):
     s.delete_task(ident)
@@ -152,7 +157,9 @@ def unread_count(s: Service):
         "count": s.db.scalar(
             select(func.count())
             .select_from(Reminder)
-            .where(Reminder.user_id == s.user.id, Reminder.status == "SENT")
+            .where(
+                Reminder.user_id == s.user.id, Reminder.status == "SENT", Reminder.in_app_visible.is_(True)
+            )
         )
     }
 
@@ -163,7 +170,11 @@ def recent_reminders(s: Service):
         serialize(r)
         for r in s.db.scalars(
             select(Reminder)
-            .where(Reminder.user_id == s.user.id, Reminder.status.in_(["SENT", "READ"]))
+            .where(
+                Reminder.user_id == s.user.id,
+                Reminder.status.in_(["SENT", "READ"]),
+                Reminder.in_app_visible.is_(True),
+            )
             .order_by(Reminder.sent_at.desc())
             .limit(10)
         )
@@ -201,7 +212,7 @@ def reminder_deliveries(ident: int, s: Service):
     return [
         {
             "id": d.id,
-            "channel": "push",
+            "channel": d.channel,
             "status": d.status,
             "attempts": d.attempts,
             "last_error": d.last_error,
@@ -219,13 +230,15 @@ def reminder_deliveries(ident: int, s: Service):
 def notification_config(s: Service):
     from app.core.config import settings
 
+    from app.notifications.email import email_configured
+
     config = settings()
     return {
         "push_configured": bool(
             config.vapid_public_key and config.vapid_private_key and config.vapid_subject
         ),
         "vapid_public_key": config.vapid_public_key,
-        "email_configured": False,
+        "email_configured": email_configured(),
     }
 
 

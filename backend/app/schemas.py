@@ -25,7 +25,16 @@ def aware(value):
     return value
 
 
-class TaskInput(Input):
+Stage = Literal["BEFORE_60", "BEFORE_30", "BEFORE_5", "AFTER_10", "END_10"]
+DEFAULT_STAGES = ["BEFORE_60", "BEFORE_30", "BEFORE_5", "AFTER_10", "END_10"]
+
+
+class TaskReminderPreferences(Input):
+    reminder_stages: list[Stage] | None = Field(default=None, max_length=5)
+    email_reminders_enabled: bool | None = None
+
+
+class TaskInput(TaskReminderPreferences):
     title: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=5000)
     priority: Literal["LOW", "MEDIUM", "HIGH", "CRITICAL"] = "MEDIUM"
@@ -61,6 +70,8 @@ class EventInput(Input):
 
 
 class PreferenceInput(Input):
+    reminder_stages: list[Stage] = Field(default=DEFAULT_STAGES, max_length=5)
+    in_app_notifications_enabled: bool = True
     timezone: str = "Africa/Accra"
     preferred_start_time: str = Field(default="09:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
     preferred_end_time: str = Field(default="17:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")
@@ -150,6 +161,9 @@ class PushEndpoint(Input):
 
 
 class NotificationPreferences(Input):
+    reminder_stages: list[Stage] | None = Field(default=None, max_length=5)
+    in_app_notifications_enabled: bool | None = None
+    email_notifications_enabled: bool | None = None
     browser_notifications_enabled: bool | None = None
     deadline_reminders_enabled: bool | None = None
     default_reminder_minutes: int | None = Field(default=None, ge=0, le=10080)
