@@ -2,10 +2,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowRight, CalendarClock, Sparkles, Check } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAuth } from "./provider";
 import { ErrorBox } from "./ui";
+import { XenonMark } from "./xenon-mark";
 export function AuthForm({ register = false }: { register?: boolean }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -19,7 +20,7 @@ export function AuthForm({ register = false }: { register?: boolean }) {
     try {
       await (register ? api.register(data) : api.login(data));
       await refresh();
-      router.push("/assistant");
+      router.push("/dashboard");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -28,48 +29,16 @@ export function AuthForm({ register = false }: { register?: boolean }) {
   }
   return (
     <main className="auth-page">
-      <section className="auth-story">
-        <Link className="brand" href="/login">
-          <span className="brand-icon">t</span>tempo.
-        </Link>
-        <div>
-          <span className="eyebrow">SPACE FOR WHAT MATTERS</span>
-          <h1>
-            Your day.
-            <br />
-            With a little
-            <br />
-            <em>more possibility.</em>
-          </h1>
-          <p>
-            A thoughtful plan for your tasks, your time,
-            <br />
-            and the way you work best.
-          </p>
-          <div className="auth-features">
-            <span>
-              <CalendarClock />
-              Plans built around your calendar
-            </span>
-            <span>
-              <Sparkles />A personal scheduling assistant
-            </span>
-            <span>
-              <Check />
-              You stay in control of every change
-            </span>
-          </div>
-        </div>
-        <small>Personalized AI Agent for Intelligent Scheduling</small>
-      </section>
       <section className="auth-panel">
         <div>
-          <span className="eyebrow">YOUR PERSONAL WORKSPACE</span>
+          <Link className="brand" href="/login">
+            <XenonMark size={32} />
+            Xenon
+          </Link>
+          <p className="auth-tagline">Make time for what matters.</p>
           <h2>{register ? "Make room for a better day." : "Welcome back."}</h2>
           <p>
-            {register
-              ? "Create your account to start planning."
-              : "Your next thoughtful plan starts here."}
+            {register ? "Create your account to start planning." : "Sign in to your workspace."}
           </p>
           <form onSubmit={submit}>
             {register && (
@@ -113,7 +82,7 @@ export function AuthForm({ register = false }: { register?: boolean }) {
             </button>
           </form>
           <p className="auth-switch">
-            {register ? "Already have an account?" : "New to Tempo?"}{" "}
+            {register ? "Already have an account?" : "New to Xenon?"}{" "}
             <Link href={register ? "/login" : "/register"}>
               {register ? "Sign in" : "Create an account"}
             </Link>

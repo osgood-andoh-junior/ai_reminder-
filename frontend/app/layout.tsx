@@ -3,8 +3,9 @@ import { Provider } from "@/components/provider";
 import { Shell } from "@/components/shell";
 import "./globals.css";
 export const metadata: Metadata = {
-  title: "Tempo · Your day, thoughtfully planned",
-  description: "Personalized AI scheduling and context-aware reminders.",
+  title: "Xenon · Make time for what matters.",
+  description:
+    "Make time for what matters. A calm workspace for your tasks, calendar, and personal scheduling assistant.",
   icons: { icon: "/favicon.svg" },
 };
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

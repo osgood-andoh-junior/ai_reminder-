@@ -63,7 +63,7 @@ def publish_due(db, now=None):
                     payload={
                         "from": settings().email_from,
                         "to": [user.email],
-                        "subject": f"Tempo: {reminder.title}",
+                        "subject": f"Xenon: {reminder.title}",
                         "text": reminder.message,
                     },
                 )

@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   Plus,
@@ -11,6 +12,7 @@ import {
   Trash2,
   RotateCcw,
 } from "lucide-react";
+import { LoadingState } from "@/components/loading-state";
 import { api } from "@/lib/api";
 import type { Task, Plan } from "@/lib/types";
 import { useAuth } from "@/components/provider";
@@ -29,7 +31,14 @@ export default function Tasks() {
   const [planning, setPlanning] = useState<Task | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<Task | null>(null);
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const timer = setInterval(() => setNow(Date.now()), 60000);
+    return () => clearInterval(timer);
+  }, []);
   const load = useCallback(async () => {
+    setError("");
     try {
       setTasks(await api.tasks());
     } catch (e) {
@@ -95,7 +104,7 @@ export default function Tasks() {
     <div className="page">
       <Heading
         eyebrow="MAKE SPACE FOR YOUR PRIORITIES"
-        title="A little progress, every day."
+        title="Tasks"
         description="Capture what matters. Find the time to make it happen."
         action={
           <button
@@ -105,7 +114,7 @@ export default function Tasks() {
             }}
           >
             <Plus size={18} />
-            New task
+            Add task
           </button>
         }
       />
@@ -128,16 +137,21 @@ export default function Tasks() {
         </label>
       </div>
       <ErrorBox message={error} />
+      {error && (
+        <button className="secondary" onClick={load}>
+          Try again
+        </button>
+      )}
       <section className="task-list">
         {loading ? (
-          <p className="loading">Loading your tasks…</p>
-        ) : visible.length ? (
+          !error && <LoadingState label="Loading your tasks…" />
+        ) : error ? null : visible.length ? (
           visible.map((task) => (
             <article className="task-row" id={`task-${task.id}`} key={task.id}>
               <button
                 disabled={busy}
                 className={`complete-button ${task.status === "COMPLETED" ? "checked" : ""}`}
-                aria-label={`Complete ${task.title}`}
+                aria-label={`${task.status === "COMPLETED" ? "Reopen" : "Complete"} ${task.title}`}
                 onClick={() =>
                   action(() =>
                     api.updateTask(task.id, {
@@ -163,7 +177,15 @@ export default function Tasks() {
                     {task.priority.toLowerCase()}
                   </span>
                   <span className="status-label">
-                    {task.status.toLowerCase().replaceAll("_", " ")}
+                    {task.status === "PENDING"
+                      ? "Unscheduled"
+                      : task.status.toLowerCase().replaceAll("_", " ")}
+                    {task.deadline &&
+                      now !== null &&
+                      Date.parse(task.deadline) < now &&
+                      !["COMPLETED", "CANCELLED"].includes(task.status) && (
+                        <strong className="overdue-label"> · Overdue</strong>
+                      )}
                   </span>
                 </div>
               </div>
@@ -215,8 +237,22 @@ export default function Tasks() {
           ))
         ) : (
           <Empty
-            title="A fresh start."
-            detail="Add your first task. We’ll help you find a good time for it."
+            title={tasks.length ? "No matching tasks." : "Nothing here yet."}
+            detail={
+              tasks.length
+                ? "Try another search or filter."
+                : "Add something you need to get done, or ask Xenon to plan it with you."
+            }
+            action={
+              !tasks.length && (
+                <div className="button-row">
+                  <button onClick={() => setEditing(null)}>Add task</button>
+                  <Link className="button secondary" href="/assistant">
+                    Ask Xenon
+                  </Link>
+                </div>
+              )
+            }
           />
         )}
       </section>

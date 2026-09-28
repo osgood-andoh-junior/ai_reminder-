@@ -1,4 +1,4 @@
-# Tempo notifications: implementation and demo
+# Xenon notifications: implementation and demo
 
 ## Architecture
 
@@ -54,10 +54,10 @@ Open `http://localhost:3000` consistently; `localhost` and `127.0.0.1` are diffe
 
 ## Two-minute notification demo
 
-1. Start Tempo and sign in. Open Settings → Notifications → **Enable browser notifications**, then allow the browser prompt. The page must say **On for this device**; granting permission alone is not enough if subscription registration fails.
+1. Start Xenon and sign in. Open Settings → Notifications → **Enable browser notifications**, then allow the browser prompt. The page must say **On for this device**; granting permission alone is not enough if subscription registration fails.
 2. Open Reminders → **New reminder**. Set title to “Professor demo,” add a short message, and choose a time one minute in the future in the displayed timezone. Submit.
 3. Navigate to Overview, or minimize the browser while keeping the computer awake. Within the worker's 10-second poll after the chosen time, the reminder becomes unread in-app. The bell updates within another 15 seconds. The OS notification appears where supported and allowed.
-4. Click the OS notification to open Tempo, or open the bell. Choose **Snooze**, then **Custom time** about one minute in the future. (Preset buttons offer 10 minutes, 30 minutes and one hour.)
+4. Click the OS notification to open Xenon, or open the bell. Choose **Snooze**, then **Custom time** about one minute in the future. (Preset buttons offer 10 minutes, 30 minutes and one hour.)
 5. Wait for the second occurrence. The unread count increases again; its generation differs from the first delivery, so duplicate suppression allows the snoozed notification.
 6. Choose **Dismiss**. The unread count drops, and the reminder remains in **Past** with its dismissed status. Settings → Recent activity includes the sent/snoozed/dismissed actions.
 
@@ -99,10 +99,10 @@ Web Push references: [MDN Push API](https://developer.mozilla.org/en-US/docs/Web
 
 - **AI unavailable:** this installation's backend was started under a network-restricted execution environment. A normal network-enabled launch restored the connection, verified both directly and in the Assistant UI. `python diagnose_ai.py` checks the configured model/tool schemas without revealing secrets or reading user tasks. The app now distinguishes connection, authentication, quota/rate-limit and model access errors. See [OpenAI error codes](https://developers.openai.com/api/docs/guides/error-codes).
 - **No in-app notification:** check `worker-error.log`, confirm the worker is running against the same database, and inspect the reminder's timezone/time. A reminder is not delivered merely because its creation succeeded.
-- **Permission denied:** allow notifications in the browser's site settings, then reload Settings. Tempo never repeatedly invokes permission prompts.
+- **Permission denied:** allow notifications in the browser's site settings, then reload Settings. Xenon never repeatedly invokes permission prompts.
 - **Permission granted but push off:** click Enable to register the device. Check VAPID configuration, push-provider access and browser support. Failed registration is shown as an error.
 - **Embedded browser reports `jmt17.google.com`:** this is Chromium's old staging push endpoint, documented as deprecated in the [Chromium endpoint change](https://chromium.googlesource.com/chromium/src.git/+/40644b8cf2b03be542976e7d1192c653e389c14e). Use a regular supported browser for the OS notification demo. Do not rewrite subscription endpoints or disable endpoint validation.
-- **Push accepted but no OS popup:** check OS notification settings/Focus Assist, browser background execution, session validity and connectivity to Tempo. Read delivery status through the owned deliveries endpoint. In-app notifications remain available.
+- **Push accepted but no OS popup:** check OS notification settings/Focus Assist, browser background execution, session validity and connectivity to Xenon. Read delivery status through the owned deliveries endpoint. In-app notifications remain available.
 - **`push_http_410` / `push_http_404`:** subscription expired. Enable notifications again. Persistent 401/403 errors usually indicate mismatched VAPID configuration; correct keys and resubscribe.
 - **Email checkbox:** configure EMAIL_PROVIDER, EMAIL_FROM and RESEND_API_KEY on API and worker. The recipient is the signed-in account email.
 
@@ -113,3 +113,7 @@ Created: migration `backend/alembic/versions/c7e2a901_notifications.py`; `backen
 Modified: existing models, schemas, configuration, application services, API routes, agent tools/error handling/tests, worker and notification interface/in-app implementation; existing reminder/settings/task pages, shell, proposal UI, types/API client/styles/Next configuration; dependency manifests/locks, CI, environment templates, Compose, Render and README. The app's architecture and unrelated page design were preserved.
 
 See [verification.md](verification.md) for executed checks and remaining verification boundaries.
+
+### Local reminder worker network access
+
+Browser delivery requires outbound HTTPS from the worker. Running the local launcher in a network-restricted agent sandbox can publish in-app reminders while push jobs fail with `push_network` (Windows socket error 10013). Launch `scripts/start-local.ps1 -SkipInstall` from a normal local terminal, or explicitly allow the agent's launcher to run with network access. Keep the worker running. Existing pending retries can recover; exhausted attempts stay in history and are not automatically replayed. Settings displays the channel and historical attempt outcome separately from the in-app reminder. Provider acceptance does not guarantee an OS popup.

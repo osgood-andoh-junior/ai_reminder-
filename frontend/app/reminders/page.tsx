@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Bell, Plus } from "lucide-react";
+import { LoadingState } from "@/components/loading-state";
 import { api } from "@/lib/api";
 import type { Reminder } from "@/lib/types";
 import { useAuth } from "@/components/provider";
@@ -18,6 +19,7 @@ export default function Reminders() {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const load = useCallback(async () => {
+    setError("");
     try {
       setItems(await api.reminders());
     } catch (e) {
@@ -75,7 +77,7 @@ export default function Reminders() {
     <div className="page">
       <Heading
         eyebrow="A GENTLE NUDGE, RIGHT ON TIME"
-        title="One less thing to remember."
+        title="Reminders"
         description="Your reminders stay here, even when you step away."
         action={
           <button
@@ -104,10 +106,15 @@ export default function Reminders() {
         <span className="muted small">Updates every 15 seconds</span>
       </div>
       <ErrorBox message={error} />
+      {error && (
+        <button className="secondary" onClick={load}>
+          Try again
+        </button>
+      )}
       <section className="panel">
         {loading ? (
-          <p className="loading">Loading reminders…</p>
-        ) : visible.length ? (
+          !error && <LoadingState label="Loading reminders…" />
+        ) : error ? null : visible.length ? (
           visible.map((r) => (
             <article className={`reminder-row ${r.status === "SENT" ? "due" : ""}`} key={r.id}>
               <span className="reminder-icon">
@@ -127,14 +134,14 @@ export default function Reminders() {
           ))
         ) : (
           <Empty
-            title="You’re all caught up."
+            title="No reminders here."
             detail="Confirm a schedule to create reminders automatically, or add one of your own."
           />
         )}
       </section>
       <p className="form-hint">
-        In-app reminders are processed by the background worker. They appear here when you return;
-        enable browser push in Settings to receive notifications outside this page.
+        Your reminders stay here when you step away. Enable browser notifications in Settings to
+        receive them outside this page.
       </p>
       {show && (
         <Modal title="A reminder for later" onClose={() => setShow(false)}>

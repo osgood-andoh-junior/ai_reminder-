@@ -1,10 +1,46 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { X, CalendarClock, Check, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Proposal } from "@/lib/types";
 import { formatDate, formatTime } from "@/lib/time";
 import { useAuth } from "./provider";
+import { reminderStages } from "@/lib/reminder-labels";
+
+function PreferenceValue({ name, value }: { name: string; value: unknown }) {
+  if (value === null) return <>Use your defaults</>;
+  if (typeof value === "boolean") return <>{value ? "On" : "Off"}</>;
+  if (Array.isArray(value))
+    return (
+      <>
+        {value.length
+          ? value
+              .map((item) =>
+                name === "preferred_days"
+                  ? ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"][
+                      Number(item)
+                    ]
+                  : reminderStages.find(([key]) => key === item)?.[1] || String(item),
+              )
+              .join(", ")
+          : "None"}
+      </>
+    );
+  if (typeof value === "object")
+    return (
+      <dl>
+        {Object.entries(value).map(([key, entry]) => (
+          <div key={key}>
+            <dt>{key.replaceAll("_", " ")}</dt>
+            <dd>
+              <PreferenceValue name={key} value={entry} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  return <>{String(value)}</>;
+}
 export function ErrorBox({ message }: { message: string }) {
   return message ? (
     <div className="error-box" role="alert">
@@ -12,12 +48,21 @@ export function ErrorBox({ message }: { message: string }) {
     </div>
   ) : null;
 }
-export function Empty({ title, detail }: { title: string; detail: string }) {
+export function Empty({
+  title,
+  detail,
+  action,
+}: {
+  title: string;
+  detail: string;
+  action?: React.ReactNode;
+}) {
   return (
     <div className="empty">
       <CalendarClock size={28} />
       <h3>{title}</h3>
       <p>{detail}</p>
+      {action}
     </div>
   );
 }
@@ -35,7 +80,7 @@ export function Heading({
   return (
     <div className="page-heading">
       <div>
-        <span className="eyebrow">{eyebrow || "A LITTLE CLARITY FOR YOUR DAY"}</span>
+        {eyebrow && <span className="eyebrow">{eyebrow}</span>}
         <h1>{title}</h1>
         <p>{description}</p>
       </div>
@@ -53,19 +98,21 @@ export function Modal({
   children: React.ReactNode;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
   useEffect(() => {
     ref.current?.showModal();
   }, []);
   return (
     <dialog
       ref={ref}
+      aria-labelledby={titleId}
       onCancel={onClose}
       onClick={(e) => {
         if (e.target === ref.current) onClose();
       }}
     >
       <div className="modal-title">
-        <h2>{title}</h2>
+        <h2 id={titleId}>{title}</h2>
         <button className="icon-button" aria-label="Close dialog" onClick={onClose}>
           <X />
         </button>
@@ -100,7 +147,7 @@ export function ProposalCard({ proposal, onDone }: { proposal: Proposal; onDone:
       <div className="proposal-title">
         <Sparkles size={18} />
         <b>{plan ? plan.title : proposal.kind.replaceAll("_", " ")}</b>
-        <span className="pill">PROPOSAL</span>
+        <span className="pill">For your review</span>
       </div>
       {proposal.payload.plans?.map((p) => (
         <div key={p.task_id} className="proposal-details">
@@ -116,7 +163,7 @@ export function ProposalCard({ proposal, onDone }: { proposal: Proposal; onDone:
         <>
           <p>
             {plan.feasible
-              ? `${plan.scheduled_minutes} minutes, thoughtfully arranged.`
+              ? `${plan.scheduled_minutes} minutes planned. Review the times below.`
               : `Partial plan: ${plan.scheduled_minutes} minutes allocated; ${plan.unscheduled_minutes} minutes still need time.`}
           </p>
           <div className="proposal-slots">
@@ -160,7 +207,9 @@ export function ProposalCard({ proposal, onDone }: { proposal: Proposal; onDone:
                   {Object.entries(proposal.payload).map(([key, value]) => (
                     <div key={key}>
                       <dt>{key.replaceAll("_", " ")}</dt>
-                      <dd>{typeof value === "object" ? JSON.stringify(value) : String(value)}</dd>
+                      <dd>
+                        <PreferenceValue name={key} value={value} />
+                      </dd>
                     </div>
                   ))}
                 </dl>
@@ -174,15 +223,29 @@ export function ProposalCard({ proposal, onDone }: { proposal: Proposal; onDone:
         <div className="proposal-footer">
           <button disabled={busy} onClick={() => decide(true)}>
             <Check size={16} />
-            {plan && !plan.feasible ? "Accept partial plan" : "Confirm changes"}
+            {busy
+              ? "Saving…"
+              : plan && !plan.feasible
+                ? "Accept partial plan"
+                : plan
+                  ? "Schedule it"
+                  : "Confirm changes"}
           </button>
           <button disabled={busy} className="secondary" onClick={() => decide(false)}>
-            Decline
+            Not now
           </button>
-          <small>Expires in 30 minutes</small>
+          <small>Review by {formatTime(proposal.expires_at, zone)}</small>
         </div>
       ) : (
-        <p className="success">{status === "ACCEPTED" ? "Changes saved" : "Proposal declined"}</p>
+        <p className="success" role="status">
+          {status === "ACCEPTED"
+            ? plan
+              ? "Scheduled"
+              : "Changes saved"
+            : status === "EXPIRED"
+              ? "This proposal has expired. Ask Xenon for a fresh plan."
+              : "Not applied"}
+        </p>
       )}
     </section>
   );

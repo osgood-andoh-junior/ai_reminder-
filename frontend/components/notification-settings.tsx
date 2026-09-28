@@ -9,6 +9,7 @@ import {
 } from "@/lib/notifications";
 import { useAuth } from "./provider";
 import { ErrorBox } from "./ui";
+import { reminderStages } from "@/lib/reminder-labels";
 
 export function NotificationSettings() {
   const { user, preferences, refresh } = useAuth();
@@ -60,7 +61,7 @@ export function NotificationSettings() {
       }
       setSubscribed(true);
       await refresh();
-      setNotice("Browser push is enabled on this device. Keep the reminder worker running.");
+      setNotice("Browser notifications are on for this device.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -75,7 +76,7 @@ export function NotificationSettings() {
       await unsubscribeBrowser();
       setSubscribed(false);
       await refresh();
-      setNotice("Browser delivery is off. In-app reminders remain enabled.");
+      setNotice("Browser notifications are off for this device.");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -94,13 +95,7 @@ export function NotificationSettings() {
       setBusy(false);
     }
   }
-  const stages = [
-    ["BEFORE_60", "1 hour before"],
-    ["BEFORE_30", "30 minutes before"],
-    ["BEFORE_5", "5 minutes before"],
-    ["AFTER_10", "10 minutes after start"],
-    ["END_10", "10 minutes before completion"],
-  ];
+  const stages = reminderStages;
   const enabled = preferences?.reminder_stages || stages.map(([key]) => key);
   return (
     <section className="panel">
@@ -123,7 +118,8 @@ export function NotificationSettings() {
         </p>
         {config && !config.push_configured && (
           <p className="form-hint">
-            Web Push needs server configuration. See the notification setup guide for VAPID keys.
+            Browser notifications are not available yet. The site administrator needs to finish
+            setup.
           </p>
         )}
         <p>
@@ -163,13 +159,17 @@ export function NotificationSettings() {
             />{" "}
             Email reminders
           </label>
-          <p>Reminder emails will be sent to: {user?.email}</p>
-          {!config?.email_configured && (
-            <p className="form-hint">Email delivery is not configured. No emails will be sent.</p>
+          <p>Email address: {user?.email}</p>
+          {!config && <p role="status">Checking email availability…</p>}
+          {config && !config.email_configured && (
+            <p className="form-hint">
+              Email reminders are unavailable until the site administrator connects an email
+              service. No emails will be sent.
+            </p>
           )}
         </fieldset>
         <fieldset disabled={busy}>
-          <legend>Default reminder stages</legend>
+          <legend>Remind me</legend>
           {stages.map(([key, label]) => (
             <label key={key}>
               <input
