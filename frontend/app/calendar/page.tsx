@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, Check, SkipForward, Pencil, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { LoadingState } from "@/components/loading-state";
 import { api } from "@/lib/api";
 import type { Calendar, Event, Task } from "@/lib/types";
 import { useAuth } from "@/components/provider";
@@ -20,6 +21,7 @@ export default function CalendarPage() {
   const [deleting, setDeleting] = useState<Event | null>(null);
   const [busy, setBusy] = useState(false);
   const load = useCallback(async () => {
+    setError("");
     try {
       const [calendar, tasks] = await Promise.all([api.calendar(), api.tasks()]);
       setData(calendar);
@@ -85,13 +87,18 @@ export default function CalendarPage() {
     })),
   ];
   const conflicts = items.filter((a, i) =>
-    items.some((b, j) => i !== j && a.start < b.end && b.start < a.end),
+    items.some(
+      (b, j) =>
+        i !== j &&
+        Date.parse(a.start) < Date.parse(b.end) &&
+        Date.parse(b.start) < Date.parse(a.end),
+    ),
   );
   return (
     <div className="page calendar-page">
       <Heading
         eyebrow="A PLACE FOR EVERYTHING"
-        title="Your time, in perspective."
+        title="Calendar"
         description={`Events, focus sessions, and room in between. All times in ${zone}.`}
         action={
           <button
@@ -101,11 +108,16 @@ export default function CalendarPage() {
             }}
           >
             <Plus size={18} />
-            New event
+            Add event
           </button>
         }
       />
       <ErrorBox message={error} />
+      {error && (
+        <button className="secondary" onClick={load}>
+          Try again
+        </button>
+      )}
       {conflicts.length > 0 && (
         <div className="error-box">
           Some calendar items overlap. <Link href="/tasks">Replan affected tasks</Link> to resolve
@@ -145,11 +157,15 @@ export default function CalendarPage() {
         </div>
       </div>
       {!data ? (
-        <p className="loading">Loading your calendar…</p>
+        !error && <LoadingState label="Loading your calendar…" />
       ) : (
         <div className={`calendar-grid ${view}`}>
           {days.map((d) => (
-            <section className={`calendar-day ${d === today ? "today" : ""}`} key={d}>
+            <section
+              aria-label={`${d}${d === today ? ", Today" : ""}`}
+              className={`calendar-day ${d === today ? "today" : ""}`}
+              key={d}
+            >
               <header>
                 <span>
                   {new Intl.DateTimeFormat("en", { weekday: "short", timeZone: "UTC" }).format(
@@ -165,7 +181,7 @@ export default function CalendarPage() {
                       dateKey(item.start, zone) <= d &&
                       dateKey(new Date(new Date(item.end).getTime() - 1).toISOString(), zone) >= d,
                   )
-                  .sort((a, b) => a.start.localeCompare(b.start))
+                  .sort((a, b) => Date.parse(a.start) - Date.parse(b.start))
                   .map((item) => (
                     <article
                       className={`calendar-event ${item.session ? "focus" : ""} ${item.type === "GOOGLE" ? "google" : ""}`}
@@ -176,6 +192,9 @@ export default function CalendarPage() {
                       </span>
                       <h3>{item.title}</h3>
                       <small>{item.type.toLowerCase()}</small>
+                      {conflicts.some((conflict) => conflict.key === item.key) && (
+                        <span className="overdue-label">Overlapping time</span>
+                      )}
                       <div className="event-actions">
                         {item.session ? (
                           <>
@@ -240,7 +259,7 @@ export default function CalendarPage() {
                     }}
                   >
                     <Plus size={14} />
-                    Add a moment
+                    Add event
                   </button>
                 )}
               </div>
@@ -250,8 +269,13 @@ export default function CalendarPage() {
       )}
       {data && items.length === 0 && (
         <Empty
-          title="Start with one thing."
-          detail="Add a fixed event here, or plan a task to create focus sessions."
+          title="Your calendar is clear."
+          detail="Add an event, or give a task some time."
+          action={
+            <Link className="button secondary" href="/assistant">
+              Plan with Xenon
+            </Link>
+          }
         />
       )}
       <div className="calendar-legend">

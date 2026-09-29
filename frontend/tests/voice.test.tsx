@@ -47,7 +47,7 @@ afterEach(() => {
 });
 async function open() {
   render(<Assistant />);
-  await screen.findByText(/What’s on your mind/);
+  await screen.findByText(/What can I help you with/);
 }
 it("sends an editable voice transcript through the existing chat API", async () => {
   await open();
@@ -193,14 +193,14 @@ it("persists auto-read per user and stops the specific response", async () => {
 });
 it("populates suggestions without submitting", async () => {
   await open();
-  fireEvent.click(screen.getByRole("button", { name: "Find time for a task" }));
+  fireEvent.click(screen.getByRole("button", { name: "Schedule a task" }));
   expect(api.chat).not.toHaveBeenCalled();
   expect((screen.getByLabelText("Message your assistant") as HTMLTextAreaElement).value).toBe(
     "Help me schedule a task before its deadline.",
   );
   fireEvent.click(screen.getByLabelText("Send message"));
   await screen.findByText("Review your plan");
-  expect(screen.queryByRole("button", { name: "Find time for a task" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Schedule a task" })).toBeNull();
 });
 
 it("continues across browser session endings without replacing or duplicating speech", async () => {

@@ -11,6 +11,7 @@ import type {
   Dashboard,
   Action,
 } from "./types";
+import type { Activity } from "./activity";
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -100,7 +101,7 @@ export const api = {
     request<{ message: string; actions: Action[]; proposals: Proposal[] }>("/agent/chat", "POST", {
       message,
     }),
-  activity: () => request<{ id: number; action: string; created_at: string }[]>("/activity"),
+  activity: () => request<Activity[]>("/activity"),
   googleStatus: () =>
     request<{ configured: boolean; connected: boolean; synced_at: string | null }>(
       "/calendar/google/status",

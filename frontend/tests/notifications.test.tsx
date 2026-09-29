@@ -171,7 +171,7 @@ describe("notification controls", () => {
 
 it("saves stage and in-app preferences", async () => {
   render(<NotificationSettings />);
-  await screen.findByText(/Email delivery is not configured/);
+  await screen.findByText(/Email reminders are unavailable/);
   fireEvent.click(screen.getByLabelText("1 hour before"));
   await waitFor(() =>
     expect(api.notificationPreferences).toHaveBeenCalledWith({
@@ -201,7 +201,7 @@ it("uses the signed-in email and enables configured email delivery", async () =>
   await waitFor(() =>
     expect((screen.getByLabelText("Email reminders") as HTMLInputElement).disabled).toBe(false),
   );
-  expect(screen.getByText(/Reminder emails will be sent to: test@example.com/)).toBeTruthy();
+  expect(screen.getByText(/Email address: test@example.com/)).toBeTruthy();
   fireEvent.click(screen.getByLabelText("Email reminders"));
   await waitFor(() =>
     expect(api.notificationPreferences).toHaveBeenCalledWith({ email_notifications_enabled: true }),

@@ -26,7 +26,7 @@ async def lifespan(app):
     yield
 
 
-app = FastAPI(title="Tempo · Personalized AI Scheduling", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="Xenon · Personalized AI Scheduling", version="1.0.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings().frontend_url],

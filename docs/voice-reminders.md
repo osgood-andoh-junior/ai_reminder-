@@ -4,7 +4,7 @@
 
 The assistant's Microphone button starts browser speech recognition. Stop finishes recognition; Cancel abandons recording. The transcript appears in the existing editable composer. Send calls the existing `/api/agent/chat` endpoint. No second agent, scheduler, confirmation path, or browser API key exists. Read aloud replays a response; automatic playback is opt-in for the current page. Navigation stops voice activity. Permission, unsupported-browser, recognition and playback errors leave text chat usable.
 
-Speech recognition depends on browser support, microphone permission and HTTPS (localhost is permitted). It may send audio to the browser vendor's recognition service. Tempo does not store audio. Recognition language follows the browser language. Real device support must be checked in the target browser; automated tests use mocked speech APIs.
+Speech recognition depends on browser support, microphone permission and HTTPS (localhost is permitted). It may send audio to the browser vendor's recognition service. Xenon does not store audio. Recognition language follows the browser language. Real device support must be checked in the target browser; automated tests use mocked speech APIs.
 
 Each scheduled task session gets independent reminders for these enabled stages:
 
@@ -33,14 +33,14 @@ The existing worker publishes reminders and creates durable channel jobs in one 
 | Variable | Value |
 | --- | --- |
 | EMAIL_PROVIDER | `resend` to enable, otherwise empty |
-| EMAIL_FROM | Your verified sender, e.g. `Tempo <reminders@your-domain.example>` |
+| EMAIL_FROM | Your verified sender, e.g. `Xenon <reminders@your-domain.example>` |
 | RESEND_API_KEY | Server-only API key with sending permission |
 
 Set all three identically on the API and worker. No new dependencies or frontend environment variables are needed. An incomplete configuration appears unavailable in Settings. Existing enabled preferences can still be turned off. Unconfigured delivery jobs fail safely while in-app and push continue. Failed jobs are inspectable through the existing owned reminder deliveries endpoint and are not automatically replayed after configuration changes.
 
 The outbox keeps channel, user, reminder/stage relation, occurrence generation, status, attempt count, safe error, sent timestamp, a unique email idempotency key, immutable payload, and retry deadline. A unique partial index prevents two email jobs for the same occurrence. Jobs use existing per-user locks, conditional claims and two-minute leases. Network/429/5xx failures retry with exponential backoff up to five attempts. Dismissal, rescheduling, task completion and disabled preferences suppress unsent jobs.
 
-Resend [retains idempotency keys for 24 hours](https://resend.com/changelog/idempotency-keys). Tempo stops email retries 23 hours after enqueueing, preserving a safety margin; it never retries outside that window, even after a worker restart. Payloads remain identical across retries. Provider acceptance is not proof of inbox delivery; spam filtering and bounces are outside this implementation. Push display retains its stable tags and seven-day browser ledger; clearing browser storage removes that deduplication history. No external transport can be committed atomically with the database.
+Resend [retains idempotency keys for 24 hours](https://resend.com/changelog/idempotency-keys). Xenon stops email retries 23 hours after enqueueing, preserving a safety margin; it never retries outside that window, even after a worker restart. Payloads remain identical across retries. Provider acceptance is not proof of inbox delivery; spam filtering and bounces are outside this implementation. Push display retains its stable tags and seven-day browser ledger; clearing browser storage removes that deduplication history. No external transport can be committed atomically with the database.
 
 ## Local migration and checks
 

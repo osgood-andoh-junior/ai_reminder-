@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { XenonMark } from "./xenon-mark";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -19,10 +20,10 @@ import { useAuth } from "./provider";
 import { NotificationBell } from "./notification-bell";
 import { unsubscribeBrowser } from "@/lib/notifications";
 const links = [
-  ["/assistant", "Assistant", Sparkles],
-  ["/dashboard", "Overview", LayoutDashboard],
+  ["/dashboard", "Today", LayoutDashboard],
   ["/tasks", "Tasks", ListTodo],
   ["/calendar", "Calendar", CalendarDays],
+  ["/assistant", "Xenon", Sparkles],
   ["/reminders", "Reminders", Bell],
   ["/settings", "Settings", Settings],
 ] as const;
@@ -40,14 +41,26 @@ export function Shell({ children }: { children: React.ReactNode }) {
       </a>
       <button
         className="mobile-menu icon-button"
-        aria-label="Open navigation"
+        aria-label={open ? "Close navigation" : "Open navigation"}
+        aria-expanded={open}
+        aria-controls="workspace-navigation"
         onClick={() => setOpen(!open)}
       >
         <Menu />
       </button>
-      <aside className={`sidebar ${open ? "open" : ""}`}>
-        <Link href="/assistant" className="brand">
-          <span className="brand-icon">t</span>tempo<span className="brand-dot">.</span>
+      <aside
+        id="workspace-navigation"
+        className={`sidebar ${open ? "open" : ""}`}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
+            setOpen(false);
+            document.querySelector<HTMLButtonElement>(".mobile-menu")?.focus();
+          }
+        }}
+      >
+        <Link href="/dashboard" className="brand" aria-label="Xenon home">
+          <XenonMark />
+          Xenon
         </Link>
         <button
           className="mobile-close icon-button"
@@ -57,17 +70,17 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <PanelLeftClose />
         </button>
         <div className="workspace-label">YOUR WORKSPACE</div>
-        <nav>
+        <nav aria-label="Main navigation">
           {links.map(([href, label, Icon]) => (
             <Link
               onClick={() => setOpen(false)}
+              aria-current={path === href ? "page" : undefined}
               className={path === href ? "nav-link active" : "nav-link"}
               href={href}
               key={href}
             >
               <Icon size={19} />
               {label}
-              {href === "/assistant" && <span className="nav-badge">AI</span>}
             </Link>
           ))}
         </nav>
@@ -75,7 +88,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
           <span className="tiny-spark">
             <Sparkles size={17} />
           </span>
-          <strong>A little more breathing room.</strong>
+          <strong>Make time for what matters.</strong>
           <p>Make a plan that works with your day.</p>
           <Link href="/tasks">
             Plan your next task <ArrowUpRight size={15} />
@@ -110,7 +123,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
         <header className="topbar">
           <span>
             Personal workspace <span className="slash">/</span>{" "}
-            <b>{links.find((l) => l[0] === path)?.[1] || "Overview"}</b>
+            <b>{links.find((l) => l[0] === path)?.[1] || "Today"}</b>
           </span>
           <div className="topbar-right">
             <span className="timezone-dot" />

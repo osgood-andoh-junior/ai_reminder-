@@ -66,13 +66,13 @@ self.addEventListener("push", (event) => {
       const scheduled = reminder.scheduled_start
         ? ` Scheduled for ${new Intl.DateTimeFormat(undefined, { timeZone: reminder.timezone, dateStyle: "medium", timeStyle: "short" }).format(new Date(reminder.scheduled_start))}.`
         : "";
-      await self.registration.showNotification(reminder.title || "Tempo", {
+      await self.registration.showNotification(reminder.title || "Xenon", {
         body: reminder.message + scheduled,
         tag,
         renotify: false,
         data: { ...data, url: reminder.task_id ? `/tasks#task-${reminder.task_id}` : "/reminders" },
         actions: [
-          { action: "open", title: "Open Tempo" },
+          { action: "open", title: "Open Xenon" },
           { action: "snooze", title: "Snooze 30 min" },
           { action: "dismiss", title: "Dismiss" },
         ],

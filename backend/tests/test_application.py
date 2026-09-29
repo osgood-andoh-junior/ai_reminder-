@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+import pytest
 from sqlalchemy import select
 from app.db.database import utcnow
 from app.db.models import User, Reminder, UserActivity
@@ -50,7 +51,13 @@ def test_auth_and_isolation(authenticated, database):
     )
 
 
-def test_complete_flow(authenticated, database):
+@pytest.mark.parametrize("hour, expected_reminders", [(12, 20), (18, 19)])
+def test_complete_flow(authenticated, database, monkeypatch, hour, expected_reminders):
+    # At 18:15 the first session's BEFORE_60 stage has already passed.
+    # Freeze both planning and stage generation so CI wall time cannot change the count.
+    now = datetime(2030, 1, 7, hour, 15, tzinfo=timezone.utc)
+    monkeypatch.setattr("app.services.application.utcnow", lambda: now)
+    monkeypatch.setattr("app.notifications.stages.utcnow", lambda: now)
     c = authenticated
     prefs = {
         "timezone": "Africa/Accra",
@@ -59,7 +66,7 @@ def test_complete_flow(authenticated, database):
         "preferred_task_length": 60,
     }
     assert c.put("/api/preferences", json=prefs).status_code == 200
-    future = utcnow() + timedelta(days=2)
+    future = now + timedelta(days=2)
     meeting = future.replace(hour=19, minute=0, second=0, microsecond=0)
     event = c.post(
         "/api/events",
@@ -70,7 +77,7 @@ def test_complete_flow(authenticated, database):
         },
     )
     assert event.status_code == 201
-    item = task(c)
+    item = task(c, deadline=(now + timedelta(days=7)).isoformat())
     plan = c.post("/api/calendar/plan", json={"task_id": item["id"]}).json()
     assert plan["feasible"] and len(plan["slots"]) == 4
     assert not c.get("/api/calendar").json()["sessions"]
@@ -79,7 +86,9 @@ def test_complete_flow(authenticated, database):
     assert accepted.status_code == 200, accepted.text
     assert c.post(f"/api/proposals/{proposal_id}/decision", json={"accept": True}).status_code == 409
     assert len(c.get("/api/calendar").json()["sessions"]) == 4
-    assert len(c.get("/api/reminders").json()) == 20
+    reminders = c.get("/api/reminders").json()
+    assert len(reminders) == expected_reminders
+    assert all(datetime.fromisoformat(r["reminder_time"]) > now for r in reminders)
     assert c.get("/api/dashboard").json()["summary"]["scheduled"] == 1
     # Reschedule away from the first allocated day; pending stage times are reconciled.
     day = plan["slots"][0]["start"][:10]

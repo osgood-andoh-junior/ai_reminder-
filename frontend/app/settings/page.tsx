@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Save, Link2, RefreshCw, Sparkles, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
@@ -6,6 +7,7 @@ import type { Preferences } from "@/lib/types";
 import { useAuth } from "@/components/provider";
 import { ErrorBox, Heading, Modal } from "@/components/ui";
 import { NotificationSettings } from "@/components/notification-settings";
+import { activityMessage, type Activity } from "@/lib/activity";
 export default function Settings() {
   const { user, preferences, refresh } = useAuth();
   const [draft, setDraft] = useState<Preferences | null>(null);
@@ -21,9 +23,7 @@ export default function Settings() {
   const [suggestions, setSuggestions] = useState<
     { message: string; changes: Partial<Preferences> }[]
   >([]);
-  const [activity, setActivity] = useState<{ id: number; action: string; created_at: string }[]>(
-    [],
-  );
+  const [activity, setActivity] = useState<Activity[]>([]);
   useEffect(() => {
     if (preferences) setDraft({ ...preferences });
   }, [preferences]);
@@ -78,15 +78,15 @@ export default function Settings() {
     await run(async () => {
       await api.savePreferences(values);
       await refresh();
-      setNotice("Your preferences have been saved.");
+      setNotice("Preferences saved.");
     });
   }
   return (
     <div className="page settings-page">
       <Heading
         eyebrow="YOUR DAY, YOUR WAY"
-        title="Find your natural rhythm."
-        description="A few preferences help us build a plan that feels like you."
+        title="Settings"
+        description="Your time, your preferences. Make Xenon work for you."
       />
       <ErrorBox message={error} />
       {notice && (
@@ -126,7 +126,7 @@ export default function Settings() {
                     <option key={t}>{t}</option>
                   ))}
                 </datalist>
-                <small>Use an IANA timezone, such as Africa/Accra.</small>
+                <small>Choose your local timezone, such as Africa/Accra.</small>
               </label>
               <div className="form-grid">
                 <label>
@@ -213,7 +213,7 @@ export default function Settings() {
                 </label>
               </div>
               <label>
-                Legacy reminder offset · minutes
+                Default reminder lead time · minutes
                 <input
                   type="number"
                   min={0}
@@ -226,7 +226,8 @@ export default function Settings() {
                 />
               </label>
               <p id="legacy-reminder-hint" className="form-hint">
-                Automatic session reminders use the stage controls in Notifications below.
+                Saved for older reminders. For scheduled sessions, choose reminder timings in
+                Notifications.
               </p>
               <label className="check-label">
                 <input
@@ -238,7 +239,7 @@ export default function Settings() {
                 <span>
                   Learn from my scheduling patterns
                   <small>
-                    Tempo suggests changes after repeated behavior. You decide whether to apply
+                    Xenon suggests changes after repeated behavior. You decide whether to apply
                     them.
                   </small>
                 </span>
@@ -270,6 +271,20 @@ export default function Settings() {
           <NotificationSettings />
           <section className="panel">
             <div className="panel-heading">
+              <h2>Voice</h2>
+            </div>
+            <div className="panel-body">
+              <p>
+                Type or speak to Xenon. Automatic response playback can be turned on in the
+                conversation’s options.
+              </p>
+              <Link className="text-link" href="/assistant">
+                Open Xenon voice options
+              </Link>
+            </div>
+          </section>
+          <section className="panel">
+            <div className="panel-heading">
               <h2>Your account</h2>
               <ShieldCheck size={18} />
             </div>
@@ -299,7 +314,7 @@ export default function Settings() {
               )}
               {google?.configured === false && (
                 <p className="form-hint">
-                  Google OAuth is not configured yet. Your internal calendar works independently.
+                  Google Calendar connection is not available yet. You can still add events here.
                 </p>
               )}
               <div className="button-row">
@@ -311,7 +326,7 @@ export default function Settings() {
                         run(async () => {
                           const result = await api.googleSync();
                           setNotice(
-                            `Synced ${result.imported} events.${result.conflicts.length ? ` Conflicts affect task IDs ${result.conflicts.join(", ")}; replan these tasks.` : ""}`,
+                            `Synced ${result.imported} events.${result.conflicts.length ? ` ${result.conflicts.length} tasks have overlapping times. Review them in Calendar.` : ""}`,
                           );
                         })
                       }
@@ -383,12 +398,35 @@ export default function Settings() {
               <h2>Recent activity</h2>
             </div>
             <div className="panel-body activity-list">
-              {activity.slice(0, 8).map((a) => (
-                <div key={a.id}>
-                  <span>{a.action.toLowerCase().replaceAll("_", " ")}</span>
-                  <small>{new Date(a.created_at).toLocaleDateString()}</small>
-                </div>
-              ))}
+              <p className="form-hint">
+                Past delivery attempts are shown here. A browser or email failure does not mean the
+                in-app reminder failed.
+              </p>
+              <Link className="text-link" href="/reminders">
+                View your reminders
+              </Link>
+              {activity.slice(0, 8).map((a) => {
+                const message = activityMessage(a);
+                return (
+                  <div key={a.id}>
+                    <span>
+                      {message.title}
+                      {message.detail && (
+                        <small className="activity-detail">{message.detail}</small>
+                      )}
+                    </span>
+                    <time dateTime={a.created_at}>
+                      {new Date(a.created_at).toLocaleString(undefined, {
+                        timeZone: preferences?.timezone || "UTC",
+                        month: "short",
+                        day: "numeric",
+                        hour: "numeric",
+                        minute: "2-digit",
+                      })}
+                    </time>
+                  </div>
+                );
+              })}
               {!activity.length && <p className="muted">Your activity will appear here.</p>}
             </div>
           </section>
@@ -397,7 +435,7 @@ export default function Settings() {
       {disconnect && (
         <Modal title="Disconnect Google Calendar?" onClose={() => setDisconnect(false)}>
           <p>
-            Imported Google events will be removed from Tempo. Your Google calendar remains
+            Imported Google events will be removed from Xenon. Your Google calendar remains
             unchanged.
           </p>
           <button
@@ -408,7 +446,7 @@ export default function Settings() {
                 await api.googleDisconnect();
                 setDisconnect(false);
                 setNotice(
-                  "Disconnected. You can revoke Tempo access in your Google account permissions.",
+                  "Disconnected. You can revoke this app’s access in your Google account permissions.",
                 );
               })
             }

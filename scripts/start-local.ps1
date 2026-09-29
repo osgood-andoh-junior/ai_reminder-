@@ -38,7 +38,7 @@ try {
     $nodeCommand = Get-Command node -ErrorAction Stop
     $nextCli = Join-Path $projectRoot 'frontend\node_modules\next\dist\bin\next'
     $jobs += Start-Process -FilePath $nodeCommand.Source -ArgumentList ('"' + $nextCli + '"'),'dev','--hostname','127.0.0.1','--port','3000' -WorkingDirectory (Join-Path $projectRoot 'frontend') -WindowStyle Hidden -PassThru -RedirectStandardOutput 'frontend-server.log' -RedirectStandardError 'frontend-error.log'
-    Write-Host 'Tempo is starting at http://localhost:3000. Logs are in the project root.'
+    Write-Host 'Xenon is starting at http://localhost:3000. Logs are in the project root.'
     Write-Host 'Press Ctrl+C here to stop these processes.'
     try { while ($true) { Start-Sleep -Seconds 2; foreach ($job in $jobs) { if ($job.HasExited) { throw 'A server exited. Check the log files.' } } } }
     finally { foreach ($job in $jobs) { if (-not $job.HasExited) { Stop-Process -Id $job.Id } } }

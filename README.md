@@ -1,8 +1,8 @@
-# Tempo
+# Xenon
 
-**Personalized AI Agent for Intelligent Scheduling and Context-Aware Reminders**
+**Make time for what matters.**
 
-Tempo is a full-stack scheduling application built with Next.js, React, TypeScript, FastAPI, SQLAlchemy and Alembic. Users own their tasks, events, schedules, reminders and conversations. There are no seeded accounts, fabricated statistics or mock calendars in application code.
+Xenon is a full-stack scheduling application built with Next.js, React, TypeScript, FastAPI, SQLAlchemy and Alembic. Users own their tasks, events, schedules, reminders and conversations. There are no seeded accounts, fabricated statistics or mock calendars in application code.
 
 **An OpenAI API key is optional for installation.** Registration, login, task CRUD, the internal calendar, deterministic scheduling, proposal confirmation, rescheduling, reminders, preferences and history work without it. The assistant clearly reports that it is not configured until a backend key is supplied. Tests use model doubles only in `backend/tests`.
 
@@ -68,7 +68,7 @@ docker compose up --build
 
 Open `http://localhost:3000`. Compose runs PostgreSQL, the API, a separate reminder worker and Next.js. PostgreSQL uses a named volume. `docker compose down` preserves that volume; do not add `-v` unless you intend to erase the database. Docker files are supplied, but the local Docker engine was not running, so container startup has not been verified.
 
-## Using Tempo without an API key
+## Using Xenon without an API key
 
 1. Register, then open **Settings**. Set your timezone, preferred working hours, session length and breaks.
 2. Add fixed commitments in **Calendar**.
@@ -192,7 +192,7 @@ Within a 60-day activity window, at least three distinct tasks moved from before
 | `ChatMessage` | Persistent conversation plus structured tool receipts |
 | `GoogleCalendarConnection`, `OAuthState` | Encrypted OAuth credentials and single-use state |
 
-Foreign keys cascade task deletion to sessions/reminders and user deletion to owned rows. Activity and proposal JSON use historical IDs intentionally and are not foreign keys. Indexed ownership/time/status fields support isolation and lookup. Datetimes are stored as UTC values; the SQLAlchemy type restores UTC awareness when SQLite reads them. Naive incoming datetimes are rejected. Browser datetime entry uses Temporal with `disambiguation: reject`, requiring the user to choose another time when a wall time is ambiguous or nonexistent.
+Foreign keys cascade task deletion to sessions/reminders and user deletion to owned rows. Activity and proposal JSON use historical IDs intentionally and are not foreign keys. Indexed ownership/time/status fields support isolation and lookup. Datetimes are stored as UTC values; the SQLAlchemy type restores UTC awareness when SQLite reads them. Naive incoming datetimes are rejected. Browser datetime entry uses Xenonral with `disambiguation: reject`, requiring the user to choose another time when a wall time is ambiguous or nonexistent.
 
 ```text
 backend/
