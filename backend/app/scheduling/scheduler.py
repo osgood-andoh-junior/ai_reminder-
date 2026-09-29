@@ -62,7 +62,7 @@ def schedule(
     excluded_dates=(),
     weights=None,
 ):
-    if now.tzinfo is None or deadline.tzinfo is None:
+    if now.utcoffset() is None or deadline.utcoffset() is None:
         raise ValueError("Scheduling requires timezone-aware instants")
     if duration <= 0:
         return {"feasible": True, "slots": [], "scheduled_minutes": 0, "unscheduled_minutes": 0}

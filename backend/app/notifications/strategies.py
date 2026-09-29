@@ -3,7 +3,6 @@
 from datetime import timedelta
 from zoneinfo import ZoneInfo
 from sqlalchemy import select
-from app.db.database import utcnow
 from app.db.models import Task, Reminder
 
 
@@ -36,7 +35,7 @@ def deadline_reminders(service, task):
         ):
             reminder.status = "CANCELLED"
     for kind, when in expected.items():
-        if when <= utcnow() or any(
+        if when <= service.now or any(
             r.kind == kind and r.reminder_time == when and r.status != "CANCELLED" for r in existing
         ):
             continue

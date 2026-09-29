@@ -18,6 +18,7 @@ from app.db.models import (
 )
 from app import schemas
 from app.core.config import settings
+from app.core.time_context import TimeContext
 from app.scheduling.scheduler import Preferences, Weights, Slot, schedule, overlaps
 
 
@@ -38,6 +39,11 @@ class Application:
 
     def __init__(self, db, user):
         self.db, self.user = db, user
+        self.now = utcnow()
+
+    @property
+    def time_context(self):
+        return TimeContext(self.now, self.preferences().timezone)
 
     def lock(self):
         # An UPDATE obtains a per-user PostgreSQL row lock / SQLite writer lock.
@@ -134,7 +140,7 @@ class Application:
             setattr(task, key, value)
         if task.status in {"COMPLETED", "CANCELLED", "PENDING"}:
             self.cancel_sessions(task.id)
-        task.completed_at = utcnow() if task.status == "COMPLETED" else None
+        task.completed_at = self.now if task.status == "COMPLETED" else None
         self.activity(
             "TASK_COMPLETED" if task.status == "COMPLETED" else "TASK_UPDATED", {"task_id": task.id}
         )
@@ -216,7 +222,7 @@ class Application:
             from app.notifications.timing import local_reminder_time
 
             data.reminder_time = local_reminder_time(
-                data.local_date, data.local_time, self.preferences().timezone
+                data.local_date, data.local_time, self.preferences().timezone, now=self.now
             )
         task = self.own(Task, data.task_id) if data.task_id else None
         if task and task.status in {"COMPLETED", "CANCELLED"}:
@@ -229,7 +235,7 @@ class Application:
                         ScheduledTask.user_id == self.user.id,
                         ScheduledTask.task_id == data.task_id,
                         ScheduledTask.status == "SCHEDULED",
-                        ScheduledTask.start_time > utcnow(),
+                        ScheduledTask.start_time > self.now,
                     )
                     .order_by(ScheduledTask.start_time)
                 )
@@ -250,7 +256,7 @@ class Application:
                 data.reminder_time = session.start_time - timedelta(minutes=data.minutes_before)
         if data.title == "Reminder" and data.task_id:
             data.title = self.own(Task, data.task_id).title
-        if data.reminder_time <= utcnow():
+        if data.reminder_time <= self.now:
             raise HTTPException(422, "Reminder must be in the future")
         reminder = Reminder(
             user_id=self.user.id, **data.model_dump(exclude={"minutes_before", "local_date", "local_time"})
@@ -271,9 +277,9 @@ class Application:
             raise HTTPException(409, "Reminder already handled")
         item.status = status
         if status == "READ":
-            item.read_at = utcnow()
+            item.read_at = self.now
         if status == "DISMISSED":
-            item.dismissed_at = utcnow()
+            item.dismissed_at = self.now
         self.activity("REMINDER_" + status, {"reminder_id": ident})
         self.db.flush()
         return serialize(item)
@@ -283,8 +289,8 @@ class Application:
         item = self.own(Reminder, ident)
         if item.status not in {"PENDING", "SENT", "READ", "SNOOZED"}:
             raise HTTPException(409, "This reminder cannot be snoozed")
-        until = data.until or utcnow() + timedelta(minutes=data.minutes)
-        if until <= utcnow() or until > utcnow() + timedelta(days=7):
+        until = data.until or self.now + timedelta(minutes=data.minutes)
+        if until <= self.now or until > self.now + timedelta(days=7):
             raise HTTPException(422, "Snooze must be in the future and within seven days")
         item.status, item.snoozed_until = "SNOOZED", until
         item.generation += 1
@@ -295,7 +301,7 @@ class Application:
 
     def proposal(self, kind, payload):
         item = Proposal(
-            user_id=self.user.id, kind=kind, payload=payload, expires_at=utcnow() + timedelta(minutes=30)
+            user_id=self.user.id, kind=kind, payload=payload, expires_at=self.now + timedelta(minutes=30)
         )
         self.db.add(item)
         self.db.flush()
@@ -316,7 +322,7 @@ class Application:
             )
         )
         done = sum(int((s.end_time - s.start_time).total_seconds() // 60) for s in completed)
-        current = utcnow()
+        current = self.now
         start = max(current, data.not_before or current)
         deadline = min(
             task.deadline or start + timedelta(days=14),
@@ -360,7 +366,7 @@ class Application:
             data.tasks,
             key=lambda item: (
                 {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}[self.own(Task, item.task_id).priority],
-                self.own(Task, item.task_id).deadline or utcnow() + timedelta(days=90),
+                self.own(Task, item.task_id).deadline or self.now + timedelta(days=90),
                 item.task_id,
             ),
         )
@@ -422,7 +428,7 @@ class Application:
         proposal = self.own(Proposal, ident)
         if proposal.status != "PENDING":
             raise HTTPException(409, "This proposal has already been handled")
-        if proposal.expires_at < utcnow():
+        if proposal.expires_at < self.now:
             raise HTTPException(409, "Proposal expired. Please request a new one")
         if not accept:
             proposal.status = "REJECTED"
@@ -502,7 +508,7 @@ class Application:
             done = sum(int((s.end_time - s.start_time).total_seconds() // 60) for s in completed)
             if done >= task.estimated_duration_minutes:
                 task.status = "COMPLETED"
-                task.completed_at = utcnow()
+                task.completed_at = self.now
                 self.cancel_sessions(task.id)
                 self.activity("TASK_COMPLETED", {"task_id": task.id})
         return serialize(session)
@@ -514,7 +520,7 @@ class Application:
             select(UserActivity).where(
                 UserActivity.user_id == self.user.id,
                 UserActivity.action == "TASK_RESCHEDULED",
-                UserActivity.created_at > utcnow() - timedelta(days=60),
+                UserActivity.created_at > self.now - timedelta(days=60),
             )
         )
         evening = [
@@ -534,7 +540,7 @@ class Application:
 
     def dashboard(self):
         zone = ZoneInfo(self.preferences().timezone)
-        today = utcnow().astimezone(zone).date()
+        today = self.now.astimezone(zone).date()
         start = datetime.combine(today, time(), zone)
         end = datetime.combine(today + timedelta(days=1), time(), zone)
         tasks = list(

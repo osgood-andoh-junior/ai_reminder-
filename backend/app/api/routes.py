@@ -31,6 +31,12 @@ def application(db=Depends(get_db), user=Depends(current_user)):
 Service = Annotated[Application, Depends(application)]
 
 
+@router.get("/time")
+def current_time(response: Response, s: Service):
+    response.headers["Cache-Control"] = "no-store"
+    return s.time_context.json()
+
+
 @router.post("/auth/register", status_code=201)
 def register(data: schemas.Register, response: Response, db=Depends(get_db)):
     user = User(email=str(data.email).lower(), name=data.name, password_hash=hasher.hash(data.password))

@@ -11,10 +11,9 @@ import { XenonMark } from "@/components/xenon-mark";
 import { dayContext, greeting } from "@/lib/day-context";
 import { dateKey, formatDate, formatTime } from "@/lib/time";
 export default function Today() {
-  const { user, preferences } = useAuth();
+  const { user, preferences, now } = useAuth();
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState("");
-  const [now, setNow] = useState<number | null>(null);
   const load = useCallback(async () => {
     setError("");
     try {
@@ -24,24 +23,10 @@ export default function Today() {
     }
   }, []);
   const zone = data?.timezone || preferences?.timezone || "Africa/Accra";
+  const today = now === null ? null : dateKey(new Date(now).toISOString(), zone);
   useEffect(() => {
-    void load();
-  }, [load]);
-  useEffect(() => {
-    let day = dateKey(new Date().toISOString(), zone);
-    const tick = () => {
-      const current = Date.now();
-      setNow(current);
-      const nextDay = dateKey(new Date(current).toISOString(), zone);
-      if (nextDay !== day) {
-        day = nextDay;
-        void load();
-      }
-    };
-    tick();
-    const timer = setInterval(tick, 60000);
-    return () => clearInterval(timer);
-  }, [zone, load]);
+    if (today) void load();
+  }, [today, load]);
   const context = data && now !== null ? dayContext(data, now) : null;
   const firstName = user?.name.trim().split(/\s+/)[0];
   return (

@@ -52,6 +52,14 @@ async function request<T>(path: string, method = "GET", body?: unknown): Promise
   return data as T;
 }
 export const api = {
+  time: () =>
+    request<{
+      utc_now: string;
+      local_now: string;
+      local_date: string;
+      timezone: string;
+      utc_offset: string;
+    }>("/time"),
   me: () => request<User>("/auth/me"),
   login: (body: unknown) => request<User>("/auth/login", "POST", body),
   register: (body: unknown) => request<User>("/auth/register", "POST", body),

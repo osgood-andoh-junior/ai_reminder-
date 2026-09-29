@@ -20,7 +20,7 @@ class Login(Input):
 
 
 def aware(value):
-    if value is not None and value.tzinfo is None:
+    if value is not None and value.utcoffset() is None:
         raise ValueError("Include an explicit timezone offset in datetimes")
     return value
 

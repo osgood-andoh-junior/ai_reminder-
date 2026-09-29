@@ -19,7 +19,7 @@ import { useAuth } from "@/components/provider";
 import { ErrorBox, ProposalCard } from "@/components/ui";
 import { XenonMark } from "@/components/xenon-mark";
 import { dayItems } from "@/lib/day-context";
-import { formatTime } from "@/lib/time";
+import { dateKey, formatTime } from "@/lib/time";
 const prompts = [
   {
     icon: CalendarDays,
@@ -35,11 +35,25 @@ const prompts = [
   { icon: Sparkles, title: "What's next?", text: "What is next on my schedule today?" },
 ];
 export default function Assistant() {
-  const { user, preferences } = useAuth();
+  const { user, preferences, now } = useAuth();
   const zone = preferences?.timezone || "Africa/Accra";
+  const today = now === null ? null : dateKey(new Date(now).toISOString(), zone);
   const [messages, setMessages] = useState<Message[]>([]);
   const [proposals, setProposals] = useState<Proposal[]>([]);
   const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+  useEffect(() => {
+    if (!today) return;
+    let active = true;
+    void api
+      .dashboard()
+      .then((day) => {
+        if (active) setDashboard(day);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [today]);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [input, setInput] = useState("");
   const dictationBase = useRef("");
@@ -428,12 +442,14 @@ export default function Assistant() {
         <div className="day-panel-heading">
           <h2>Today</h2>
           <span>
-            {new Intl.DateTimeFormat("en", {
-              weekday: "long",
-              month: "short",
-              day: "numeric",
-              timeZone: zone,
-            }).format(new Date())}
+            {now === null
+              ? "Syncing time…"
+              : new Intl.DateTimeFormat("en", {
+                  weekday: "long",
+                  month: "short",
+                  day: "numeric",
+                  timeZone: zone,
+                }).format(new Date(now))}
           </span>
         </div>
         <div className="daily-count">

@@ -37,7 +37,7 @@ def session_reminders(service, task, session):
     enabled = (
         task.reminder_stages if task.reminder_stages is not None else service.preferences().reminder_stages
     )
-    expected = stage_times(session.start_time, session.end_time, enabled)
+    expected = stage_times(session.start_time, session.end_time, enabled, now=service.now)
     existing = list(
         service.db.scalars(
             select(Reminder).where(

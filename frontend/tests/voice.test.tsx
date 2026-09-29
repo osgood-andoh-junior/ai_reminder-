@@ -4,7 +4,11 @@ import Assistant from "@/app/assistant/page";
 import { api } from "@/lib/api";
 
 vi.mock("@/components/provider", () => ({
-  useAuth: () => ({ user: { id: 7, name: "Test" }, preferences: { timezone: "UTC" } }),
+  useAuth: () => ({
+    user: { id: 7, name: "Test" },
+    preferences: { timezone: "UTC" },
+    now: Date.parse("2026-09-29T12:00:00Z"),
+  }),
 }));
 vi.mock("@/lib/api", () => ({
   api: { history: vi.fn(), proposals: vi.fn(), dashboard: vi.fn(), health: vi.fn(), chat: vi.fn() },
