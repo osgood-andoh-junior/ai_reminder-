@@ -88,7 +88,11 @@ def test_real_agent_orchestration(authenticated, database):
             "I found four sessions. Review and confirm the proposed schedule.",
         ]
     )
-    result = chat(s, "I have a networking assignment due Friday. It will take four hours.", client=model)
+    result = chat(
+        s,
+        f"Schedule my four-hour networking assignment after {wednesday.replace(hour=6).isoformat()}, due {friday.isoformat()}.",
+        client=model,
+    )
     assert result["requires_confirmation"]
     assert len(result["actions"]) == 4
     proposal = result["proposals"][0]

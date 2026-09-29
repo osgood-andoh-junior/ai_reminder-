@@ -19,7 +19,7 @@ import { useAuth } from "@/components/provider";
 import { Empty, ErrorBox, Heading, Modal, ProposalCard } from "@/components/ui";
 import { formatDate, toInstant, localInput } from "@/lib/time";
 export default function Tasks() {
-  const { preferences } = useAuth();
+  const { preferences, now } = useAuth();
   const zone = preferences?.timezone || "Africa/Accra";
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,12 +31,6 @@ export default function Tasks() {
   const [planning, setPlanning] = useState<Task | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState<Task | null>(null);
-  const [now, setNow] = useState<number | null>(null);
-  useEffect(() => {
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), 60000);
-    return () => clearInterval(timer);
-  }, []);
   const load = useCallback(async () => {
     setError("");
     try {

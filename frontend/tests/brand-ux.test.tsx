@@ -18,6 +18,7 @@ vi.mock("@/components/provider", () => ({
   useAuth: () => ({
     user: { id: 7, name: "Alex Smith", email: "alex@example.test" },
     preferences: { timezone: "UTC" },
+    now: Date.parse("2026-09-29T12:00:00Z"),
     refresh: mocks.refresh,
   }),
 }));

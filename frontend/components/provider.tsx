@@ -3,16 +3,19 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 import { usePathname, useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import type { User, Preferences } from "@/lib/types";
+import { useServerClock } from "@/lib/use-server-clock";
 type Context = {
   user: User | null;
   preferences: Preferences | null;
   loading: boolean;
+  now: number | null;
   refresh: () => Promise<void>;
 };
 const Auth = createContext<Context>({
   user: null,
   preferences: null,
   loading: true,
+  now: null,
   refresh: async () => {},
 });
 export const useAuth = () => useContext(Auth);
@@ -23,6 +26,7 @@ export function Provider({ children }: { children: React.ReactNode }) {
   const [error, setError] = useState("");
   const pathname = usePathname();
   const router = useRouter();
+  const { now, clockError } = useServerClock(user?.id, preferences?.timezone);
   const refresh = useCallback(async () => {
     setError("");
     try {
@@ -60,7 +64,8 @@ export function Provider({ children }: { children: React.ReactNode }) {
       </main>
     );
   return (
-    <Auth.Provider value={{ user, preferences, loading, refresh }}>
+    <Auth.Provider value={{ user, preferences, loading, refresh, now }}>
+      {user && clockError && <p role="alert">{clockError}</p>}
       {publicPage || user ? (
         children
       ) : (

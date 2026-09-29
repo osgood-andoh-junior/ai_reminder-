@@ -92,8 +92,8 @@ class GoogleCalendarService(CalendarService):
     def get_events(self):
         result = []
         token = None
-        self.window_start = utcnow() - timedelta(days=30)
-        self.window_end = utcnow() + timedelta(days=90)
+        self.window_start = self.application.now - timedelta(days=30)
+        self.window_end = self.application.now + timedelta(days=90)
         for _ in range(100):
             params = {
                 "timeMin": self.window_start.isoformat(),

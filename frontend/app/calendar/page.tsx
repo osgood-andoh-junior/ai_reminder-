@@ -9,10 +9,11 @@ import { useAuth } from "@/components/provider";
 import { Empty, ErrorBox, Heading, Modal } from "@/components/ui";
 import { addDays, dateKey, formatDate, formatTime, localInput, toInstant } from "@/lib/time";
 export default function CalendarPage() {
-  const { preferences } = useAuth();
+  const { preferences, now } = useAuth();
   const zone = preferences?.timezone || "Africa/Accra";
-  const today = dateKey(new Date().toISOString(), zone);
-  const [day, setDay] = useState(today);
+  const today = now === null ? null : dateKey(new Date(now).toISOString(), zone);
+  const [selectedDay, setDay] = useState<string | null>(null);
+  const day = selectedDay ?? today;
   const [view, setView] = useState("week");
   const [data, setData] = useState<Calendar | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -63,6 +64,7 @@ export default function CalendarPage() {
       setEditing(undefined);
     });
   }
+  if (!day || !today) return <LoadingState label="Syncing calendar time…" />;
   const days = Array.from({ length: view === "week" ? 7 : 1 }, (_, i) => addDays(day, i));
   const items = [
     ...(data?.events || []).map((e) => ({
@@ -144,7 +146,7 @@ export default function CalendarPage() {
             {formatDate(`${day}T12:00:00Z`, "UTC")}
             {view === "week" ? ` – ${formatDate(`${days[6]}T12:00:00Z`, "UTC")}` : ""}
           </h2>
-          <button className="secondary small-button" onClick={() => setDay(today)}>
+          <button className="secondary small-button" onClick={() => setDay(null)}>
             Today
           </button>
         </div>

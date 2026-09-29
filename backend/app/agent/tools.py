@@ -6,6 +6,8 @@ from app import schemas
 from app.db.models import Task, CalendarEvent, Reminder, UserActivity, ScheduledTask
 from app.services.application import serialize
 from app.scheduling.scheduler import Slot, overlaps
+from app.agent.time_arguments import TimeArguments
+from app.agent.time_arguments import INSTANT_FIELDS
 
 
 class Empty(schemas.Input):
@@ -45,10 +47,16 @@ class Range(schemas.Input):
 
 
 class Registry:
-    def __init__(self, service):
+    def __init__(self, service, message=""):
         self.service = service
+        self.time = TimeArguments(service.time_context, message)
         s = service
         self.entries = {
+            "get_current_time": (
+                Empty,
+                "Read the authoritative server time snapshot for this request, in UTC and the user's timezone.",
+                lambda _: self.time.context.json(),
+            ),
             "get_user_profile": (
                 Empty,
                 "Read the signed-in user's name and email.",
@@ -190,7 +198,7 @@ class Registry:
                 "type": "function",
                 "name": name,
                 "description": description,
-                "parameters": model.model_json_schema(),
+                "parameters": self.time.schema(model),
                 "strict": False,
             }
             for name, (model, description, _) in self.entries.items()
@@ -199,6 +207,8 @@ class Registry:
     def remember(self, value):
         if isinstance(value, dict):
             for key, item in value.items():
+                if key in INSTANT_FIELDS and isinstance(item, str):
+                    self.time.known_instants.add(item)
                 if key in {"id", "task_id", "event_id", "scheduled_task_id"} and isinstance(item, int):
                     self.known_ids.add(item)
                 self.remember(item)
@@ -210,7 +220,7 @@ class Registry:
         if name not in self.entries:
             raise ValueError("Unknown tool")
         model, _, call = self.entries[name]
-        parsed = model.model_validate(arguments)
+        parsed = model.model_validate(self.time.normalize(name, arguments))
 
         def check_ids(data):
             if isinstance(data, dict):

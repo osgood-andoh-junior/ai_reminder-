@@ -309,7 +309,10 @@ export default function Settings() {
               </p>
               {google?.synced_at && (
                 <small className="muted">
-                  Last synced {new Date(google.synced_at).toLocaleString()}
+                  Last synced{" "}
+                  {new Date(google.synced_at).toLocaleString(undefined, {
+                    timeZone: preferences?.timezone || "UTC",
+                  })}
                 </small>
               )}
               {google?.configured === false && (
