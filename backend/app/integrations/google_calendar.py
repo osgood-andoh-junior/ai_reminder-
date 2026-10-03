@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, time
 from urllib.parse import urlencode, quote
 from zoneinfo import ZoneInfo
 import httpx
-from cryptography.fernet import Fernet, InvalidToken
+from cryptography.fernet import InvalidToken
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select, delete
@@ -15,25 +15,10 @@ from app.db.database import utcnow
 from app.db.models import GoogleCalendarConnection, OAuthState, CalendarEvent, ScheduledTask
 from app.services.calendar import CalendarService
 from app.scheduling.scheduler import Slot, overlaps
+from app.integrations.google_oauth import configured, cipher
 
 router = APIRouter(prefix="/api/calendar/google")
 SCOPE = "https://www.googleapis.com/auth/calendar.events"
-
-
-def configured():
-    c = settings()
-    return bool(c.google_client_id and c.google_client_secret and c.token_encryption_key)
-
-
-def cipher():
-    if not configured():
-        raise HTTPException(
-            503, "Google Calendar is not configured. Add Google OAuth credentials and TOKEN_ENCRYPTION_KEY."
-        )
-    try:
-        return Fernet(settings().token_encryption_key.encode())
-    except ValueError:
-        raise HTTPException(503, "Google token encryption is not configured correctly") from None
 
 
 def google_request(method, url, **kwargs):
@@ -41,6 +26,17 @@ def google_request(method, url, **kwargs):
         response = httpx.request(method, url, timeout=20, **kwargs)
         response.raise_for_status()
         return response.json() if response.content else {}
+    except httpx.HTTPStatusError as exc:
+        status = exc.response.status_code
+        detail = {
+            401: "Google access expired or was revoked. Reconnect Google Calendar.",
+            403: "Google Calendar permission is insufficient. Reconnect or check your calendar permissions.",
+            404: "Google Calendar event no longer exists.",
+            409: "Google Calendar event already exists.",
+            410: "Google Calendar event was cancelled.",
+            412: "The Google event changed. Review a fresh proposal before sending updates.",
+        }.get(status, "Google Calendar could not complete the request. Retry or reconnect your account.")
+        raise HTTPException(status if status in {404, 409, 410, 412} else 502, detail) from None
     except (httpx.HTTPError, ValueError):
         raise HTTPException(
             502, "Google Calendar could not complete the request. Try again or reconnect your account."
@@ -78,14 +74,16 @@ class GoogleCalendarService(CalendarService):
             )
             tokens.update(refreshed)
             tokens["expires_at"] = utcnow().timestamp() + refreshed.get("expires_in", 3600)
+            self.connection.last_error = None
             self.connection.encrypted_tokens = cipher().encrypt(json.dumps(tokens).encode()).decode()
         return tokens["access_token"]
 
     def request(self, method, suffix="", **kwargs):
+        headers = kwargs.pop("headers", {})
         return google_request(
             method,
             "https://www.googleapis.com/calendar/v3/calendars/primary/events" + suffix,
-            headers={"Authorization": "Bearer " + self.token()},
+            headers={**headers, "Authorization": "Bearer " + self.token()},
             **kwargs,
         )
 
@@ -189,6 +187,7 @@ class GoogleCalendarService(CalendarService):
             item.start_time, item.end_time = start, end
             item.is_recurring = bool(event.get("recurringEventId"))
             item.event_type = "FIXED"
+            item.meeting_metadata = meeting_metadata(event)
             s.db.add(item)
             seen.add(event["id"])
         for item in existing:
@@ -199,6 +198,7 @@ class GoogleCalendarService(CalendarService):
             ):
                 s.db.delete(item)
         self.connection.synced_at = utcnow()
+        self.connection.last_error = None
         s.db.flush()
         events = list(s.db.scalars(select(CalendarEvent).where(CalendarEvent.user_id == s.user.id)))
         sessions = list(
@@ -218,6 +218,32 @@ class GoogleCalendarService(CalendarService):
         )
         s.activity("GOOGLE_SYNCED", {"imported": len(seen), "conflicting_task_ids": affected})
         return {"imported": len(seen), "conflicts": affected}
+
+
+def meeting_metadata(event):
+    """Only public organizer-event fields; never credentials or attendee calendars."""
+    conference = event.get("conferenceData", {})
+    return {
+        "attendees": [
+            {
+                "email": a.get("email", ""),
+                "name": a.get("displayName", ""),
+                "response_status": a.get("responseStatus", "needsAction"),
+            }
+            for a in event.get("attendees", [])
+        ],
+        "organizer": event.get("organizer", {}),
+        "all_day": "date" in event.get("start", {}),
+        "location": event.get("location", ""),
+        "meet_url": next(
+            (e.get("uri") for e in conference.get("entryPoints", []) if e.get("entryPointType") == "video"),
+            None,
+        ),
+        "conference_status": conference.get("createRequest", {}).get("status", {}).get("statusCode"),
+        "conference_data": conference,
+        "calendar_url": event.get("htmlLink"),
+        "etag": event.get("etag"),
+    }
 
 
 @router.get("/status")
@@ -261,6 +287,7 @@ def callback(s: Service, state: str = "", code: str = "", error: str = ""):
     saved = s.db.scalar(
         select(OAuthState).where(
             OAuthState.token_hash == digest(state),
+            OAuthState.provider == "google_calendar",
             OAuthState.user_id == s.user.id,
             OAuthState.expires_at > utcnow(),
         )
@@ -289,6 +316,7 @@ def callback(s: Service, state: str = "", code: str = "", error: str = ""):
         select(GoogleCalendarConnection).where(GoogleCalendarConnection.user_id == s.user.id)
     )
     connection = existing or GoogleCalendarConnection(user_id=s.user.id)
+    connection.last_error = None
     connection.encrypted_tokens = cipher().encrypt(json.dumps(tokens).encode()).decode()
     s.db.add(connection)
     s.activity("GOOGLE_CONNECTED")
@@ -297,7 +325,13 @@ def callback(s: Service, state: str = "", code: str = "", error: str = ""):
 
 @router.post("/sync")
 def sync(s: Service):
-    return GoogleCalendarService(s).sync()
+    service = GoogleCalendarService(s)
+    try:
+        return service.sync()
+    except HTTPException:
+        service.connection.last_error = "calendar_sync_failed_reconnect_or_retry"
+        s.db.commit()
+        raise
 
 
 @router.post("/disconnect")

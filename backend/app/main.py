@@ -13,6 +13,8 @@ from app.core.config import settings
 from app.db.database import SessionLocal
 from app.api.routes import router
 from app.integrations.google_calendar import router as google_router
+from app.api.integrations import router as integrations_router
+from app.api.meetings import router as meetings_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logger = logging.getLogger("scheduler")
@@ -36,6 +38,8 @@ app.add_middleware(
 )
 app.include_router(router)
 app.include_router(google_router)
+app.include_router(integrations_router)
+app.include_router(meetings_router)
 requests_by_client = defaultdict(deque)
 
 

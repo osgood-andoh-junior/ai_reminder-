@@ -74,6 +74,14 @@ class CalendarEvent(Owned, Stamp, Base):
     is_recurring: Mapped[bool] = mapped_column(Boolean, default=False)
     external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source: Mapped[str] = mapped_column(String(20), default="internal")
+    meeting_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class Contact(Owned, Stamp, Base):
+    __tablename__ = "contacts"
+    __table_args__ = (UniqueConstraint("user_id", "email"),)
+    name: Mapped[str] = mapped_column(String(100))
+    email: Mapped[str] = mapped_column(String(254))
 
 
 class ScheduledTask(Owned, Stamp, Base):
@@ -175,9 +183,62 @@ class GoogleCalendarConnection(Owned, Stamp, Base):
     __table_args__ = (UniqueConstraint("user_id"),)
     encrypted_tokens: Mapped[str] = mapped_column(Text)
     synced_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 
 class OAuthState(Owned, Base):
     __tablename__ = "oauth_states"
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    provider: Mapped[str] = mapped_column(
+        String(30), default="google_calendar", server_default="google_calendar"
+    )
+
+
+class IntegrationConnection(Owned, Stamp, Base):
+    __tablename__ = "integration_connections"
+    __table_args__ = (UniqueConstraint("user_id", "provider"),)
+    provider: Mapped[str] = mapped_column(String(30))
+    account: Mapped[str] = mapped_column(String(254))
+    encrypted_tokens: Mapped[str] = mapped_column(Text)
+    synced_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+
+class ExternalMessage(Owned, Stamp, Base):
+    __tablename__ = "external_messages"
+    __table_args__ = (UniqueConstraint("user_id", "provider", "account", "external_id"),)
+    provider: Mapped[str] = mapped_column(String(30))
+    account: Mapped[str] = mapped_column(String(254))
+    external_id: Mapped[str] = mapped_column(String(255))
+    subject: Mapped[str] = mapped_column(String(300), default="")
+    sender: Mapped[str] = mapped_column(String(300), default="")
+    snippet: Mapped[str] = mapped_column(String(500), default="")
+    received_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING")
+    attempts: Mapped[int] = mapped_column(default=0)
+    last_error: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+
+class DetectedCommitment(Owned, Stamp, Base):
+    __tablename__ = "detected_commitments"
+    __table_args__ = (UniqueConstraint("message_id", "candidate_index"),)
+    message_id: Mapped[int] = mapped_column(
+        ForeignKey("external_messages.id", ondelete="CASCADE"), index=True
+    )
+    candidate_index: Mapped[int] = mapped_column(default=0)
+    title: Mapped[str] = mapped_column(String(200))
+    type: Mapped[str] = mapped_column(String(20))
+    deadline: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    start_time: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    end_time: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    estimated_duration_minutes: Mapped[int | None] = mapped_column(nullable=True)
+    confidence: Mapped[float]
+    reason: Mapped[str] = mapped_column(String(500))
+    unresolved: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING", index=True)
+    revision: Mapped[int] = mapped_column(default=0)
+    task_id: Mapped[int | None] = mapped_column(ForeignKey("tasks.id", ondelete="SET NULL"), nullable=True)
+    event_id: Mapped[int | None] = mapped_column(
+        ForeignKey("calendar_events.id", ondelete="SET NULL"), nullable=True
+    )

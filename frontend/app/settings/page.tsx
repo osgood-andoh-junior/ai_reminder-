@@ -1,11 +1,13 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Save, Link2, RefreshCw, Sparkles, ShieldCheck } from "lucide-react";
+import { Save, Sparkles, ShieldCheck } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Preferences } from "@/lib/types";
 import { useAuth } from "@/components/provider";
-import { ErrorBox, Heading, Modal } from "@/components/ui";
+import { ErrorBox, Heading } from "@/components/ui";
+import { IntegrationHub } from "@/components/integration-hub";
+import { ContactsPanel } from "@/components/meetings";
 import { NotificationSettings } from "@/components/notification-settings";
 import { activityMessage, type Activity } from "@/lib/activity";
 export default function Settings() {
@@ -14,12 +16,6 @@ export default function Settings() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
-  const [disconnect, setDisconnect] = useState(false);
-  const [google, setGoogle] = useState<{
-    configured: boolean;
-    connected: boolean;
-    synced_at: string | null;
-  } | null>(null);
   const [suggestions, setSuggestions] = useState<
     { message: string; changes: Partial<Preferences> }[]
   >([]);
@@ -29,8 +25,7 @@ export default function Settings() {
   }, [preferences]);
   const load = useCallback(async () => {
     try {
-      const [g, s, a] = await Promise.all([api.googleStatus(), api.suggestions(), api.activity()]);
-      setGoogle(g);
+      const [s, a] = await Promise.all([api.suggestions(), api.activity()]);
       setSuggestions(s);
       setActivity(a);
     } catch (e) {
@@ -296,76 +291,8 @@ export default function Settings() {
               </p>
             </div>
           </section>
-          <section className="panel">
-            <div className="panel-heading">
-              <h2>Google Calendar</h2>
-              <Link2 size={18} />
-            </div>
-            <div className="panel-body">
-              <p>
-                {google?.connected
-                  ? "Your Google Calendar is connected."
-                  : "Bring your existing commitments into your plan."}
-              </p>
-              {google?.synced_at && (
-                <small className="muted">
-                  Last synced{" "}
-                  {new Date(google.synced_at).toLocaleString(undefined, {
-                    timeZone: preferences?.timezone || "UTC",
-                  })}
-                </small>
-              )}
-              {google?.configured === false && (
-                <p className="form-hint">
-                  Google Calendar connection is not available yet. You can still add events here.
-                </p>
-              )}
-              <div className="button-row">
-                {google?.connected ? (
-                  <>
-                    <button
-                      disabled={busy}
-                      onClick={() =>
-                        run(async () => {
-                          const result = await api.googleSync();
-                          setNotice(
-                            `Synced ${result.imported} events.${result.conflicts.length ? ` ${result.conflicts.length} tasks have overlapping times. Review them in Calendar.` : ""}`,
-                          );
-                        })
-                      }
-                    >
-                      <RefreshCw size={15} />
-                      Sync now
-                    </button>
-                    <button
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() => setDisconnect(true)}
-                    >
-                      Disconnect
-                    </button>
-                  </>
-                ) : (
-                  <button
-                    disabled={busy || !google?.configured}
-                    onClick={() =>
-                      run(async () => {
-                        const result = await api.googleConnect();
-                        window.location.assign(result.url);
-                      })
-                    }
-                  >
-                    <Link2 size={15} />
-                    Connect Google
-                  </button>
-                )}
-              </div>
-              <p className="form-hint">
-                Sync imports your primary calendar from 30 days ago through the next 90 days. Edit
-                imported events in Google, then sync again.
-              </p>
-            </div>
-          </section>
+          <IntegrationHub />
+          <ContactsPanel />
           <section className="panel">
             <div className="panel-heading">
               <h2>Learning your rhythm</h2>
@@ -435,29 +362,6 @@ export default function Settings() {
           </section>
         </div>
       </div>
-      {disconnect && (
-        <Modal title="Disconnect Google Calendar?" onClose={() => setDisconnect(false)}>
-          <p>
-            Imported Google events will be removed from Xenon. Your Google calendar remains
-            unchanged.
-          </p>
-          <button
-            disabled={busy}
-            className="danger"
-            onClick={() =>
-              run(async () => {
-                await api.googleDisconnect();
-                setDisconnect(false);
-                setNotice(
-                  "Disconnected. You can revoke this app’s access in your Google account permissions.",
-                );
-              })
-            }
-          >
-            Disconnect
-          </button>
-        </Modal>
-      )}
     </div>
   );
 }

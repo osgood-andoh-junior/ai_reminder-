@@ -34,6 +34,22 @@ def conflicts(slots, busy):
     return [(i, j) for i, a in enumerate(slots) for j, b in enumerate(busy) if overlaps(a, b)]
 
 
+def meeting_slots(start, end, duration, busy, limit=5):
+    """Contiguous organizer slots, bounded by a user-selected window; no attendee data."""
+    start, end = start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+    cursor = datetime.fromtimestamp(ceil(start.timestamp() / 900) * 900, timezone.utc)
+    length = timedelta(minutes=duration)
+    result = []
+    while cursor + length <= end and len(result) < limit:
+        candidate = Slot(cursor, cursor + length)
+        if not any(overlaps(candidate, obstacle) for obstacle in busy):
+            result.append(candidate.json())
+            cursor += length
+        else:
+            cursor += timedelta(minutes=15)
+    return result
+
+
 @dataclass
 class Preferences:
     timezone: str = "Africa/Accra"

@@ -4,9 +4,10 @@ import { ChevronLeft, ChevronRight, Plus, Check, SkipForward, Pencil, Trash2 } f
 import Link from "next/link";
 import { LoadingState } from "@/components/loading-state";
 import { api } from "@/lib/api";
-import type { Calendar, Event, Task } from "@/lib/types";
+import type { Calendar, Event, Task, MeetingDraft, Proposal } from "@/lib/types";
+import { MeetingDetails, MeetingEditor } from "@/components/meetings";
 import { useAuth } from "@/components/provider";
-import { Empty, ErrorBox, Heading, Modal } from "@/components/ui";
+import { Empty, ErrorBox, Heading, Modal, ProposalCard } from "@/components/ui";
 import { addDays, dateKey, formatDate, formatTime, localInput, toInstant } from "@/lib/time";
 export default function CalendarPage() {
   const { preferences, now } = useAuth();
@@ -21,6 +22,10 @@ export default function CalendarPage() {
   const [editing, setEditing] = useState<Event | null | undefined>(undefined);
   const [deleting, setDeleting] = useState<Event | null>(null);
   const [busy, setBusy] = useState(false);
+  const [meetingEdit, setMeetingEdit] = useState<{ initial?: MeetingDraft; id?: number } | null>(
+    null,
+  );
+  const [meetingProposal, setMeetingProposal] = useState<Proposal | null>(null);
   const load = useCallback(async () => {
     setError("");
     try {
@@ -115,6 +120,31 @@ export default function CalendarPage() {
         }
       />
       <ErrorBox message={error} />
+      <button className="secondary" onClick={() => setMeetingEdit({})}>
+        New meeting
+      </button>
+      <p className="muted">
+        Invite external attendees through Google Calendar. Only your availability is checked.
+      </p>
+      {meetingProposal && (
+        <ProposalCard
+          key={meetingProposal.id}
+          proposal={meetingProposal}
+          onDone={() => void load()}
+        />
+      )}
+      {meetingEdit && (
+        <MeetingEditor
+          initial={meetingEdit.initial}
+          eventId={meetingEdit.id}
+          day={day}
+          onClose={() => setMeetingEdit(null)}
+          onProposed={(p) => {
+            setMeetingProposal(p);
+            setMeetingEdit(null);
+          }}
+        />
+      )}
       {error && (
         <button className="secondary" onClick={load}>
           Try again
@@ -194,6 +224,7 @@ export default function CalendarPage() {
                       </span>
                       <h3>{item.title}</h3>
                       <small>{item.type.toLowerCase()}</small>
+                      {item.event?.source === "google" && <MeetingDetails event={item.event} />}
                       {conflicts.some((conflict) => conflict.key === item.key) && (
                         <span className="overdue-label">Overlapping time</span>
                       )}
@@ -239,7 +270,76 @@ export default function CalendarPage() {
                             </button>
                           </>
                         ) : (
-                          <small>Edit in Google</small>
+                          <>
+                            <button
+                              className="secondary small-button"
+                              disabled={busy}
+                              onClick={() =>
+                                action(async () => {
+                                  const event = await api.getMeeting(item.id);
+                                  setData((previous) =>
+                                    previous
+                                      ? {
+                                          ...previous,
+                                          events: previous.events.map((e) =>
+                                            e.id === event.id ? event : e,
+                                          ),
+                                        }
+                                      : previous,
+                                  );
+                                })
+                              }
+                            >
+                              Refresh responses
+                            </button>
+                            {item.event?.meeting_metadata?.organizer?.self &&
+                              !item.event.is_recurring &&
+                              !item.event.meeting_metadata.all_day && (
+                                <>
+                                  <button
+                                    className="secondary small-button"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      action(async () => {
+                                        const e = await api.getMeeting(item.id);
+                                        setMeetingEdit({
+                                          id: e.id,
+                                          initial: {
+                                            title: e.title,
+                                            description: e.description,
+                                            start_time: e.start_time,
+                                            duration_minutes:
+                                              (Date.parse(e.end_time) - Date.parse(e.start_time)) /
+                                              60000,
+                                            attendees:
+                                              e.meeting_metadata?.attendees.map((a) => ({
+                                                name: a.name,
+                                                email: a.email,
+                                              })) || [],
+                                            location: e.meeting_metadata?.location || "",
+                                            google_meet: !!e.meeting_metadata?.meet_url,
+                                          },
+                                        });
+                                      })
+                                    }
+                                  >
+                                    Edit meeting
+                                  </button>
+                                  <button
+                                    className="secondary small-button"
+                                    disabled={busy}
+                                    onClick={() =>
+                                      action(async () => {
+                                        const result = await api.cancelMeeting(item.id);
+                                        setMeetingProposal(result.proposal);
+                                      })
+                                    }
+                                  >
+                                    Cancel meeting
+                                  </button>
+                                </>
+                              )}
+                          </>
                         )}
                       </div>
                     </article>

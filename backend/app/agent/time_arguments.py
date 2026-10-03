@@ -30,6 +30,7 @@ class TimeArguments:
         self.references = resolve_mentions(message, context)
         self.needs_clarification = unresolved_relative_time(message)
         self.known_instants = set()
+        self.meeting_slots = set()
 
     def explicit_instant(self, value):
         # Absolute dates may come from the current user or an authenticated read tool,
@@ -116,6 +117,9 @@ class TimeArguments:
             "create_reminder",
             "snooze_reminder",
             "detect_conflicts",
+            "propose_meeting",
+            "reschedule_meeting",
+            "find_my_availability",
         }:
             raise ValueError(
                 "This relative time needs clarification. Ask for an explicit date/time before scheduling"
@@ -136,7 +140,15 @@ class TimeArguments:
                                 "Ask for an explicit local clock time for this reminder or event"
                             )
                         value = self.instant(value)
-                    elif self.message and not self.explicit_instant(value):
+                    elif (
+                        self.message
+                        and not self.explicit_instant(value)
+                        and not (
+                            name in {"propose_meeting", "reschedule_meeting"}
+                            and key == "start_time"
+                            and value in self.meeting_slots
+                        )
+                    ):
                         raise ValueError(
                             "Do not calculate relative timestamps. Use the current request's server time references"
                         )
