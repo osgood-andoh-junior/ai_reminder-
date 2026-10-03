@@ -25,6 +25,9 @@ const context = vi.hoisted(() => ({
 vi.mock("@/components/provider", () => ({ useAuth: () => context }));
 vi.mock("@/lib/api", () => ({
   api: {
+    integrations: vi.fn().mockResolvedValue([]),
+    commitments: vi.fn().mockResolvedValue([]),
+    proposals: vi.fn().mockResolvedValue([]),
     googleStatus: vi.fn().mockResolvedValue({ configured: false, connected: false }),
     suggestions: vi.fn().mockResolvedValue([]),
     activity: vi.fn().mockResolvedValue([]),

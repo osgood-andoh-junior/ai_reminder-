@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:3000/api/calendar/google/callback"
+    gmail_redirect_uri: str = "http://localhost:3000/api/integrations/gmail/callback"
+    gmail_sync_days: int = Field(default=7, ge=1, le=30)
+    gmail_sync_limit: int = Field(default=5, ge=1, le=25)
+    gmail_message_max_chars: int = Field(default=12000, ge=1000, le=30000)
     token_encryption_key: str = ""
     cookie_secure: bool = False
     session_hours: int = 168

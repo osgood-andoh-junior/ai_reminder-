@@ -3505,3 +3505,18 @@ textarea::placeholder {
     gap: 5px;
   }
 }
+/* Connected services and email commitments reuse Xenon's panel and proposal patterns. */
+.integration-cards, .commitment-list { display: grid; gap: 14px; margin: 18px 0; }
+.integration-card, .commitment-card { border: 1px solid var(--border, #dde4e2); border-radius: 16px; padding: 18px; min-width: 0; }
+.integration-card-title { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.integration-card-title h3 { flex: 1; margin: 0; font-size: 1rem; }
+.integration-card p, .commitment-card p { overflow-wrap: anywhere; }
+.integration-hub .button-row { flex-wrap: wrap; margin-top: 14px; }
+.integration-hub .proposal { margin-top: 18px; }
+/* Shared invitation review and manual meeting forms. */
+.meeting-attendee { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; margin-block: 12px; }
+.meeting-attendee label { flex: 1; min-width: 150px; }
+.meeting-details { display: grid; gap: 6px; margin-top: 10px; overflow-wrap: anywhere; }
+.meeting-details p { margin: 0; font-size: 12px; }
+.meeting-details a { font-size: 12px; text-decoration: underline; }
+.meeting-proposal h3 { margin-block: 16px 8px; }

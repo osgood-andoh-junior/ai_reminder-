@@ -269,7 +269,11 @@ OAuth state is random, hashed, single-use, time-limited and bound to the authent
 
 The adapter imports the primary calendar from 30 days in the past to 90 days in the future, follows all pages, expands recurring instances, handles all-day dates in the provider's timezone, and removes deleted imported events within that window. Transparent/declined events do not block time. Connected calendars refresh before scheduling/confirmation; a failed refresh blocks the operation rather than silently using stale data. Sync reports conflicts with existing task sessions without moving them automatically.
 
-The provider class implements remote create/update/delete operations behind `CalendarService`. The current product UI edits imported events in Google and keeps generated task sessions local; automatic bidirectional task export is not enabled. Disconnect removes locally stored credentials and imported events. Users may additionally revoke access through Google account permissions.
+Single timed meetings organized by the connected user can be created, edited and cancelled from Calendar or the AI assistant after reviewing a persisted proposal. Google sends attendee invitations and updates; optional Google Meet links and RSVP responses appear on the organizer event. Recurring/all-day meeting changes remain in Google Calendar, and generated task sessions remain local. Disconnect removes locally stored credentials and imported events. Users may additionally revoke access through Google account permissions.
+
+Xenon does not access attendees' calendars. External attendees participate through Google Calendar invitations.
+
+See [Meeting scheduling](docs/meeting-scheduling.md) for architecture, endpoints, confirmation and retry behavior, scopes, deployment, local tests and the real-attendee test checklist.
 
 Reference: [Google Calendar events.list](https://developers.google.com/workspace/calendar/api/v3/reference/events/list).
 

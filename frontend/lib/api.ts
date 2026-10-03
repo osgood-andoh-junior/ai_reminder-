@@ -10,6 +10,12 @@ import type {
   Calendar,
   Dashboard,
   Action,
+  Integration,
+  Commitment,
+  CommitmentReview,
+  Contact,
+  MeetingDraft,
+  MeetingResult,
 } from "./types";
 import type { Activity } from "./activity";
 export class ApiError extends Error {
@@ -52,6 +58,35 @@ async function request<T>(path: string, method = "GET", body?: unknown): Promise
   return data as T;
 }
 export const api = {
+  contacts: () => request<Contact[]>("/contacts"),
+  proposeContact: (body: { name: string; email: string }) =>
+    request<Proposal>("/contacts/propose", "POST", body),
+  deleteContact: (id: number) => request(`/contacts/${id}`, "DELETE"),
+  proposeMeeting: (body: MeetingDraft, id?: number) =>
+    request<MeetingResult>(id ? `/meetings/${id}/propose` : "/meetings/propose", "POST", body),
+  cancelMeeting: (id: number) => request<MeetingResult>(`/meetings/${id}/cancel`, "POST"),
+  getMeeting: (id: number) => request<Event>(`/meetings/${id}`),
+  decideMeeting: (id: number, accept: boolean) =>
+    request<{ message: string; meeting?: Event }>(`/proposals/${id}/decision`, "POST", { accept }),
+  integrations: () => request<Integration[]>("/integrations"),
+  gmailConnect: () => request<{ url: string }>("/integrations/gmail/connect", "POST"),
+  gmailDisconnect: (revoke: boolean) =>
+    request<{ warning: string | null }>("/integrations/gmail/disconnect", "POST", { revoke }),
+  gmailSync: () =>
+    request<{
+      checked: number;
+      detected: number;
+      failed: number;
+      more: boolean;
+      error: string | null;
+    }>("/integrations/gmail/sync", "POST"),
+  commitments: () => request<Commitment[]>("/integrations/commitments"),
+  proposeCommitment: (id: number, review: CommitmentReview) =>
+    request<{ proposal: Proposal | null; plan?: Plan; message?: string }>(
+      `/integrations/commitments/${id}/propose`,
+      "POST",
+      review,
+    ),
   time: () =>
     request<{
       utc_now: string;

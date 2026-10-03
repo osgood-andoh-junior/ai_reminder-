@@ -435,7 +435,16 @@ class Application:
             self.activity("SCHEDULE_REJECTED", {"proposal_id": ident})
             return {"message": "Proposal declined", "status": "REJECTED"}
         payload = proposal.payload
-        if proposal.kind == "task_reminders":
+        result = {}
+        if proposal.kind in {"meeting_create", "meeting_update", "meeting_cancel", "save_contact"}:
+            from app.services.meetings import apply
+
+            result = apply(self, proposal)
+        elif proposal.kind in {"commitment", "commitment_dismiss"}:
+            from app.services.commitments import apply
+
+            apply(self, proposal)
+        elif proposal.kind == "task_reminders":
             self.task_reminder_preferences(
                 payload["task_id"], schemas.TaskReminderPreferences(**payload["changes"])
             )
@@ -472,7 +481,7 @@ class Application:
             raise HTTPException(400, "Unsupported proposal")
         proposal.status = "ACCEPTED"
         self.db.flush()
-        return {"message": "Changes saved", "status": "ACCEPTED"}
+        return {"message": "Changes saved", "status": "ACCEPTED", **result}
 
     def session_status(self, ident, status):
         self.lock()

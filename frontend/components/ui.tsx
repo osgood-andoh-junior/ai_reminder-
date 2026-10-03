@@ -6,6 +6,7 @@ import type { Proposal } from "@/lib/types";
 import { formatDate, formatTime } from "@/lib/time";
 import { useAuth } from "./provider";
 import { reminderStages } from "@/lib/reminder-labels";
+import { MeetingProposal } from "./meetings";
 
 function PreferenceValue({ name, value }: { name: string; value: unknown }) {
   if (value === null) return <>Use your defaults</>;
@@ -121,7 +122,14 @@ export function Modal({
     </dialog>
   );
 }
-export function ProposalCard({ proposal, onDone }: { proposal: Proposal; onDone: () => void }) {
+export function ProposalCard(props: { proposal: Proposal; onDone: () => void }) {
+  return props.proposal.kind.startsWith("meeting_") ? (
+    <MeetingProposal {...props} />
+  ) : (
+    <GenericProposalCard {...props} />
+  );
+}
+function GenericProposalCard({ proposal, onDone }: { proposal: Proposal; onDone: () => void }) {
   const { preferences, refresh } = useAuth();
   const zone = preferences?.timezone || "Africa/Accra";
   const [busy, setBusy] = useState(false);
@@ -184,7 +192,40 @@ export function ProposalCard({ proposal, onDone }: { proposal: Proposal; onDone:
       ) : (
         !proposal.payload.plans && (
           <div className="proposal-details">
-            {proposal.kind === "dismiss_reminder" ? (
+            {proposal.kind === "save_contact" ? (
+              <p>
+                Remember {proposal.payload.name} · {proposal.payload.email} for future invitations?
+              </p>
+            ) : proposal.kind === "commitment_dismiss" ? (
+              <p>
+                Dismiss “{proposal.payload.review?.title}” from your commitment inbox? No task or
+                event will be created.
+              </p>
+            ) : proposal.kind === "commitment" ? (
+              <>
+                <p>
+                  {proposal.payload.review?.action === "event"
+                    ? "Add to your Xenon calendar"
+                    : "Add as a task"}
+                  : {proposal.payload.review?.title}
+                </p>
+                {proposal.payload.event && (
+                  <p>
+                    {formatDate(proposal.payload.event.start_time, zone)} ·{" "}
+                    {formatTime(proposal.payload.event.start_time, zone)} –{" "}
+                    {formatTime(proposal.payload.event.end_time, zone)}
+                  </p>
+                )}
+                {proposal.payload.task && (
+                  <p>
+                    {proposal.payload.task.estimated_duration_minutes} minutes
+                    {proposal.payload.task.deadline &&
+                      ` · Due ${formatDate(proposal.payload.task.deadline, zone)} at ${formatTime(proposal.payload.task.deadline, zone)}`}
+                  </p>
+                )}
+                <small>Detected from Gmail. Confirm only after reviewing the details.</small>
+              </>
+            ) : proposal.kind === "dismiss_reminder" ? (
               <p>Dismiss reminder #{proposal.payload.reminder_id}? Its history will be retained.</p>
             ) : proposal.kind === "delete_event" ? (
               <p>Delete calendar event #{proposal.payload.event_id}?</p>
