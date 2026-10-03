@@ -25,8 +25,13 @@ def frozen(monkeypatch):
 
 @pytest.fixture
 def connected(frozen, authenticated, database, monkeypatch):
+    # Satisfy the real configuration guard without relying on a developer's .env.
+    # These placeholders and the ephemeral key are used only with the mocked transport.
+    monkeypatch.setattr(settings(), "google_client_id", "test-only-client")
+    monkeypatch.setattr(settings(), "google_client_secret", "test-only-secret")
     key = Fernet.generate_key()
     monkeypatch.setattr(settings(), "token_encryption_key", key.decode())
+    monkeypatch.setattr(httpx, "request", lambda *a, **k: pytest.fail("Unexpected live Google HTTP request"))
     with database() as db:
         user = db.scalar(select(User))
         db.add(
@@ -316,6 +321,21 @@ def test_disconnected(frozen, authenticated):
     assert authenticated.post("/api/meetings/propose", json=draft()).status_code == 409
 
 
+def test_unconfigured_meeting_returns_503(frozen, authenticated, database, monkeypatch):
+    # A stored connection must not bypass genuinely missing server configuration.
+    # Deliberately do not use connected: this test exercises the production guard.
+    for field in ("google_client_id", "google_client_secret", "token_encryption_key"):
+        monkeypatch.setattr(settings(), field, "")
+    monkeypatch.setattr(httpx, "request", lambda *a, **k: pytest.fail("Unexpected live Google HTTP request"))
+    with database() as db:
+        user = db.scalar(select(User))
+        db.add(GoogleCalendarConnection(user_id=user.id, encrypted_tokens="unused-test-token"))
+        db.commit()
+    response = authenticated.post("/api/meetings/propose", json=draft())
+    assert response.status_code == 503
+    assert "Google integration is not configured" in response.json()["detail"]
+
+
 def test_relative_time_tools_and_no_confirmation_tool(connected, database):
     with database() as db:
         s = Application(db, db.scalar(select(User)))
@@ -372,7 +392,8 @@ def test_relative_window_can_propose_only_server_selected_slot(connected, databa
         assert p and p["payload"]["meeting"]["duration_minutes"] == 30
 
 
-def test_agent_cannot_invent_email_address(connected, database):
+def test_agent_cannot_invent_email_address(frozen, authenticated, database):
+    # Email provenance and contact proposals do not read or mutate Google Calendar.
     with database() as db:
         s = Application(db, db.scalar(select(User)))
         reg = Registry(s, "Schedule a meeting with Elliot tomorrow at 3 PM")
@@ -383,7 +404,10 @@ def test_agent_cannot_invent_email_address(connected, database):
         with pytest.raises(ValueError, match="Never guess"):
             reg.execute("save_contact", {"name": "Elliot", "email": "liot@example.com"})
         reg = Registry(s, "Remember Elliot as elliot@example.com.")
-        assert reg.execute("save_contact", {"name": "Elliot", "email": "elliot@example.com"})["kind"] == "save_contact"
+        assert (
+            reg.execute("save_contact", {"name": "Elliot", "email": "elliot@example.com"})["kind"]
+            == "save_contact"
+        )
 
 
 def test_removing_final_attendee_is_confirmed_update(connected):
