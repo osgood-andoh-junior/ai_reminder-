@@ -10,12 +10,10 @@ class Settings(BaseSettings):
     environment: str = "development"
     secret_key: str = ""
     frontend_url: str = "http://localhost:3000"
-    openai_api_key: str = ""
-    ai_provider: Literal["openai", "perplexity"] = "perplexity"
+    ai_provider: Literal["perplexity"] = "perplexity"
     perplexity_api_key: str = ""
     perplexity_model: str = Field(default="perplexity/sonar", min_length=1)
     ai_enabled: bool = True
-    openai_model: str = "gpt-4.1-mini"
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:3000/api/calendar/google/callback"
@@ -41,8 +39,7 @@ class Settings(BaseSettings):
 
     @property
     def ai_configured(self):
-        key = self.perplexity_api_key if self.ai_provider == "perplexity" else self.openai_api_key
-        return bool(self.ai_enabled and key.strip())
+        return bool(self.ai_enabled and self.perplexity_api_key.strip())
 
     @field_validator("database_url")
     @classmethod

@@ -16,7 +16,7 @@ Each scheduled task session gets independent reminders for these enabled stages:
 | AFTER_10 | start plus 10 minutes |
 | END_10 | end minus 10 minutes |
 
-All five default to enabled. Application code calculates elapsed offsets in UTC, including across DST changes; API timestamps require explicit offsets. Past stage times are skipped, not clamped to now. After-start/end stages are skipped unless strictly inside the session, so sessions of ten minutes or less have no such reminders. Two stages that coincide (e.g. a 20-minute session) remain separate stages. Messages are short deterministic templates and need no OpenAI request.
+All five default to enabled. Application code calculates elapsed offsets in UTC, including across DST changes; API timestamps require explicit offsets. Past stage times are skipped, not clamped to now. After-start/end stages are skipped unless strictly inside the session, so sessions of ten minutes or less have no such reminders. Two stages that coincide (e.g. a 20-minute session) remain separate stages. Messages are short deterministic templates and need no AI request.
 
 Settings saves stage preferences and reconciles pending reminders on active sessions. Task `reminder_stages=null` inherits preferences; `[]` disables stages; a list replaces the enabled stages. Task `email_reminders_enabled=false` opts out of email. Global email consent is always required, even with a task override of true. Set overrides through `PATCH /api/tasks/{id}/reminder-preferences`, or ask the assistant, which creates a persisted proposal requiring the normal Confirm button. New-task creation also accepts overrides. Custom reminders and optional deadline reminders remain supported. The legacy default offset remains stored for compatibility; automatic sessions now use stages.
 
@@ -88,7 +88,7 @@ No commit, push, deployment, live-provider send, or production migration is part
 
 ## Implementation verification and files
 
-Verified locally: 83 backend tests, 16 frontend component tests, four Playwright HTTP proxy tests, Ruff, ESLint, TypeScript checking, and the Next.js production build. The migration test upgrades legacy SQLite data, downgrades, and upgrades again while preserving a delivered push row. PostgreSQL offline migration SQL generation also passed; no live PostgreSQL migration was run. Existing Starlette deprecation warnings and a Vite plugin deprecation notice remain non-failing. Real microphone hardware, live Resend inbox delivery, Google OAuth, and live OpenAI interpretation were not exercised. Test doubles verify speech events, provider requests, and the agent proposal boundary.
+Verified locally: 83 backend tests, 16 frontend component tests, four Playwright HTTP proxy tests, Ruff, ESLint, TypeScript checking, and the Next.js production build. The migration test upgrades legacy SQLite data, downgrades, and upgrades again while preserving a delivered push row. PostgreSQL offline migration SQL generation also passed; no live PostgreSQL migration was run. Existing Starlette deprecation warnings and a Vite plugin deprecation notice remain non-failing. Real microphone hardware, live Resend inbox delivery, Google OAuth, and live AI interpretation were not exercised. Test doubles verify speech events, provider requests, and the agent proposal boundary.
 
 Changed/created files by responsibility:
 

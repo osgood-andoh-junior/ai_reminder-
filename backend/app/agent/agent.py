@@ -58,7 +58,12 @@ def chat(service, message, client=None):
     try:
         provider = get_provider(config, client=client)
     except ProviderError:
-        raise HTTPException(503, UNAVAILABLE + " You can still manage tasks and use Plan schedule.") from None
+        raise HTTPException(
+            503,
+            UNAVAILABLE
+            + " Configure PERPLEXITY_API_KEY on the backend and enable AI_ENABLED."
+            + " You can still manage tasks and use Plan schedule.",
+        ) from None
     # Capture once per chat request, including when callers reuse an Application.
     service.now = utcnow()
     try:

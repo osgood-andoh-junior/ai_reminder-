@@ -13,7 +13,6 @@ from app.agent.agent import chat
 from app.agent.providers import (
     PERPLEXITY_ENDPOINT,
     UNAVAILABLE,
-    OpenAIProvider,
     PerplexityProvider,
     ProviderError,
     get_provider,
@@ -91,11 +90,7 @@ def test_selection_and_sonar_configuration(monkeypatch):
     assert isinstance(provider, PerplexityProvider)
     assert provider.model == "perplexity/sonar"
     assert config.ai_configured
-    config.ai_provider = "openai"
-    config.openai_api_key = "test-only-openai"
-    assert isinstance(get_provider(config), OpenAIProvider)
-    assert config.ai_configured
-    monkeypatch.setenv("AI_PROVIDER", "typo")
+    monkeypatch.setenv("AI_PROVIDER", "unsupported")
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
 
@@ -282,15 +277,14 @@ def test_bad_tool_arguments_are_recoverable(authenticated, database, model, raw)
     assert "error" in json.loads(requests[1]["input"][-1]["output"])
 
 
-@pytest.mark.parametrize("provider", ["perplexity", "openai"])
-def test_missing_key_and_disabled_ai_leave_manual_features_working(authenticated, monkeypatch, provider):
+def test_missing_key_and_disabled_ai_leave_manual_features_working(authenticated, monkeypatch):
     config = settings()
-    monkeypatch.setattr(config, "ai_provider", provider)
     monkeypatch.setattr(httpx, "post", lambda *a, **k: pytest.fail("AI must not run"))
     c = authenticated
     assert c.get("/api/health").json()["ai_configured"] is False
     response = c.post("/api/agent/chat", json={"message": "Hello"})
     assert response.status_code == 503 and UNAVAILABLE in response.json()["detail"]
+    assert "PERPLEXITY_API_KEY" in response.json()["detail"]
     task = c.post("/api/tasks", json={"title": "Manual", "estimated_duration_minutes": 30})
     assert task.status_code == 201
     assert c.get("/api/tasks").status_code == 200
@@ -302,7 +296,6 @@ def test_missing_key_and_disabled_ai_leave_manual_features_working(authenticated
     assert accept(c, plan["proposal"]).status_code == 200
     assert len(c.get("/api/calendar").json()["sessions"]) == 1
     monkeypatch.setattr(config, "perplexity_api_key", "test-key")
-    monkeypatch.setattr(config, "openai_api_key", "test-key")
     assert c.get("/api/health").json()["ai_configured"] is True
     monkeypatch.setattr(config, "ai_enabled", False)
     assert c.get("/api/health").json()["ai_configured"] is False

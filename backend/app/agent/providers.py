@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from typing import Protocol
 
 import httpx
-from openai import OpenAI, OpenAIError
 
 UNAVAILABLE = "The AI service is temporarily unavailable. Please retry shortly."
 PERPLEXITY_ENDPOINT = "https://api.perplexity.ai/v1/agent"
@@ -76,46 +75,6 @@ def parse_response(data):
     return Response(output, calls, "".join(parts))
 
 
-class OpenAIProvider:
-    def __init__(self, config, client=None, timeout=40):
-        self.model = config.openai_model
-        self.client = client
-        self.key = config.openai_api_key
-        self.timeout = timeout
-
-    def generate(self, *, instructions, inputs, tools=None, schema=None):
-        kwargs = dict(
-            model=self.model, instructions=instructions, input=inputs, store=False, max_output_tokens=1800
-        )
-        if tools is not None:
-            kwargs.update(tools=tools, parallel_tool_calls=False)
-        if schema is not None:
-            kwargs["text"] = {"format": {"type": "json_object"}}
-        try:
-            if self.client is not None:
-                result = self.client.responses.create(**kwargs)
-            else:
-                with OpenAI(api_key=self.key, timeout=self.timeout, max_retries=1) as client:
-                    result = client.responses.create(**kwargs)
-            if hasattr(result, "model_dump"):
-                return parse_response(result.model_dump(exclude_none=True))
-            # Existing injected SDK test doubles use SimpleNamespace.
-            output = [vars(item) for item in getattr(result, "output", [])]
-            if result.output_text:
-                output.append(
-                    {
-                        "type": "message",
-                        "role": "assistant",
-                        "content": [{"type": "output_text", "text": result.output_text}],
-                    }
-                )
-            return parse_response({"status": "completed", "output": output})
-        except OpenAIError as exc:
-            raise ProviderError(getattr(exc, "status_code", None)) from None
-        except (ValueError, TypeError, AttributeError):
-            raise ProviderError() from None
-
-
 class PerplexityProvider:
     def __init__(self, config, timeout=40):
         self.model = config.perplexity_model
@@ -155,11 +114,9 @@ class PerplexityProvider:
 
 
 def get_provider(config, *, client=None, timeout=40) -> AIProvider:
-    # Retain the pre-existing injectable OpenAI client seam for offline tests.
+    # Tests may inject a provider implementing the same transport-independent protocol.
     if client is not None:
-        return OpenAIProvider(config, client=client, timeout=timeout)
+        return client
     if not config.ai_configured:
         raise ProviderError()
-    if config.ai_provider == "perplexity":
-        return PerplexityProvider(config, timeout=timeout)
-    return OpenAIProvider(config, timeout=timeout)
+    return PerplexityProvider(config, timeout=timeout)

@@ -162,9 +162,7 @@ def test_reminder_worker_and_personalization(authenticated, database):
 
 
 def test_no_key_is_graceful(authenticated, monkeypatch):
-    from app.core.config import settings
 
-    monkeypatch.setattr(settings(), "openai_api_key", "")
     response = authenticated.post("/api/agent/chat", json={"message": "Schedule my assignment"})
     assert response.status_code == 503
     assert "AI service is temporarily unavailable" in response.json()["detail"]

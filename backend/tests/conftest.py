@@ -13,7 +13,6 @@ def offline_ai_configuration(monkeypatch):
 
     monkeypatch.setattr(settings(), "ai_provider", "perplexity")
     monkeypatch.setattr(settings(), "perplexity_api_key", "")
-    monkeypatch.setattr(settings(), "openai_api_key", "")
     monkeypatch.setattr(settings(), "perplexity_model", "perplexity/sonar")
     monkeypatch.setattr(settings(), "ai_enabled", True)
 

@@ -56,7 +56,7 @@ npm ci
 cd ..
 ```
 
-Copy `backend/.env.example` to `backend/.env` and `frontend/.env.example` to `frontend/.env.local`. Leave Perplexity, OpenAI and Google credentials blank. From `backend`, run `python -m alembic upgrade head`, then `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log`. In a second terminal with the same virtual environment, run `python -m app.worker` from `backend`. Run `npm run dev` from `frontend` in a third terminal.
+Copy `backend/.env.example` to `backend/.env` and `frontend/.env.example` to `frontend/.env.local`. Leave Perplexity and Google credentials blank. From `backend`, run `python -m alembic upgrade head`, then `python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log`. In a second terminal with the same virtual environment, run `python -m app.worker` from `backend`. Run `npm run dev` from `frontend` in a third terminal.
 
 ### Docker with PostgreSQL
 
@@ -78,7 +78,7 @@ Open `http://localhost:3000`. Compose runs PostgreSQL, the API, a separate remin
 6. Confirmed sessions appear in Calendar; reminders and activity records are created in the same database transaction.
 7. Select **Replan** to propose replacement sessions. The existing plan remains intact until confirmation. Mark individual sessions done or skipped in Calendar, or complete the entire task in Tasks.
 
-The assistant defaults to Perplexity Agent API with `perplexity/sonar`. Add `PERPLEXITY_API_KEY` to `backend/.env` and restart the API. Set `AI_PROVIDER=openai` and `OPENAI_API_KEY` to use the retained OpenAI provider instead. Nothing in the frontend receives either key. See [AI providers and Render configuration](docs/ai-providers.md).
+The assistant defaults to Perplexity Agent API with `perplexity/sonar`. Add `PERPLEXITY_API_KEY` to `backend/.env` and restart the API. Nothing in the frontend receives the API key. See [AI providers and Render configuration](docs/ai-providers.md).
 
 ## Environment variables
 
@@ -92,12 +92,10 @@ Backend configuration is read from environment variables, or `backend/.env` when
 | `FRONTEND_URL` | `http://localhost:3000`; exact permitted origin, with no trailing slash |
 | `COOKIE_SECURE` | `false` locally; must be `true` in production |
 | `SESSION_HOURS` | `168`; session lifetime |
-| `AI_PROVIDER` | `perplexity` (default) or `openai`; no automatic fallback |
+| `AI_PROVIDER` | `perplexity` only; no provider fallback |
 | `PERPLEXITY_API_KEY` | Backend-only Perplexity API key; optional until AI is used |
 | `PERPLEXITY_MODEL` | `perplexity/sonar`; exact Agent API model identifier |
-| `OPENAI_API_KEY` | Backend-only key, used only with `AI_PROVIDER=openai` |
 | `AI_ENABLED` | `true` by default; set `false` to disable model calls even if a key exists, especially on isolated test servers |
-| `OPENAI_MODEL` | `gpt-4.1-mini`; configurable Responses API model |
 | `AGENT_MAX_ITERATIONS` | `8`; bounded model/tool rounds |
 | `GOOGLE_CLIENT_ID` | Optional Google OAuth web application client ID |
 | `GOOGLE_CLIENT_SECRET` | Optional backend-only OAuth secret |
@@ -108,7 +106,7 @@ Backend configuration is read from environment variables, or `backend/.env` when
 | `EARLY_WEIGHT` | `20`; heuristic early-completion weight |
 | `FRAGMENTATION_WEIGHT` | `10`; heuristic short-session penalty |
 
-Frontend: set **`BACKEND_URL`** in `frontend/.env.local` locally, or in Vercel's server-side environment. Local value: `http://127.0.0.1:8000`. This is resolved into the same-origin `/api/*` rewrite when Next.js starts/builds. Rebuild/redeploy after changing it. Do not introduce `NEXT_PUBLIC_OPENAI_API_KEY` or any other public secret.
+Frontend: set **`BACKEND_URL`** in `frontend/.env.local` locally, or in Vercel's server-side environment. Local value: `http://127.0.0.1:8000`. This is resolved into the same-origin `/api/*` rewrite when Next.js starts/builds. Rebuild/redeploy after changing it. Do not introduce `NEXT_PUBLIC_PERPLEXITY_API_KEY` or any other public secret.
 
 Generate production secrets with Python, then store the output privately in the hosting provider's secret manager:
 
@@ -226,9 +224,9 @@ render.yaml                    Render API/database/worker blueprint
 
 `get_user_profile`, `get_user_preferences`, `update_user_preference`, `get_tasks`, `get_task`, `create_task`, `update_task`, `complete_task`, `get_calendar_events`, `create_calendar_event`, `update_calendar_event`, `delete_calendar_event`, `find_available_time`, `detect_conflicts`, `schedule_task`, `reschedule_task`, `reschedule_multiple_tasks`, `create_reminder`, `get_reminders`, `get_activity_history`.
 
-The Responses API tool loop uses JSON Schema from Pydantic. Optional/default parameters use `strict: false` in the provider schema and are validated locally before execution. At most eight model rounds execute; calls are sequential. Conversation context is limited to recent messages, and activity retrieval is capped at 30 entries. Successful actions are committed individually and returned as structured receipts, so a later provider outage cannot conceal earlier saved actions. Errors are also returned as receipts. The model's explanatory text is not a substitute for these receipts or schedule cards.
+The Perplexity Agent API tool loop uses JSON Schema from Pydantic. Optional/default parameters use `strict: false` in the provider schema and are validated locally before execution. At most eight model rounds execute; calls are sequential. Conversation context is limited to recent messages, and activity retrieval is capped at 30 entries. Successful actions are committed individually and returned as structured receipts, so a later provider outage cannot conceal earlier saved actions. Errors are also returned as receipts. The model's explanatory text is not a substitute for these receipts or schedule cards.
 
-Provider configuration: [AI providers](docs/ai-providers.md). Reference: [OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling).
+Provider configuration: [AI providers](docs/ai-providers.md). Reference: [Perplexity custom functions](https://docs.perplexity.ai/docs/agent-api/tools/custom-functions).
 
 ## API summary
 
@@ -313,7 +311,7 @@ Deployment is configured, not published automatically. You must supply your host
 5. Worker root: `backend`; same dependency build; start: `python -m app.worker`; same `DATABASE_URL`. Start it after the initial migration has completed. The worker retries safely if the schema is not ready.
 6. In Vercel, import the repository and select **`frontend` as Root Directory** and the Next.js preset. Install: `npm ci`; build: `npm run build`; use the default Next.js output handling. Set server-side `BACKEND_URL=https://YOUR_RENDER_API` before building.
 7. Deploy Vercel, update Render's exact `FRONTEND_URL` if necessary, and restart the API. Browser requests stay on the frontend origin through the Next.js rewrite, so HttpOnly SameSite=Lax cookies remain first-party. Do not expose a public browser API URL or store bearer tokens in localStorage.
-8. Optional: add backend Perplexity credentials (or select OpenAI). Optional Google setup uses the frontend HTTPS callback URL so the OAuth callback retains the same session cookie.
+8. Optional: add backend Perplexity credentials. Optional Google setup uses the frontend HTTPS callback URL so the OAuth callback retains the same session cookie.
 9. Register a real account through the deployed frontend. Verify tasks, calendar, planning/confirmation and worker-delivered in-app reminders. Configure managed database backups, monitoring and restore testing before broad use.
 
 For AWS, use the supplied backend image for an ECS/Fargate service and worker, an RDS PostgreSQL instance, HTTPS behind an ALB, private database networking and Secrets Manager. Run `alembic upgrade head` as a one-off deployment task before starting the new service version. Set the same production variables and point Vercel's `BACKEND_URL` to the API's HTTPS domain.
