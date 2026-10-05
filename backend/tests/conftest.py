@@ -6,6 +6,17 @@ from app.db.database import Base, get_db
 from app.main import app, requests_by_client
 
 
+@pytest.fixture(autouse=True)
+def offline_ai_configuration(monkeypatch):
+    """Never borrow live model credentials from a developer's environment."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings(), "ai_provider", "perplexity")
+    monkeypatch.setattr(settings(), "perplexity_api_key", "")
+    monkeypatch.setattr(settings(), "perplexity_model", "perplexity/sonar")
+    monkeypatch.setattr(settings(), "ai_enabled", True)
+
+
 @pytest.fixture
 def database(tmp_path):
     engine = create_engine(f"sqlite:///{tmp_path / 'test.db'}", connect_args={"check_same_thread": False})

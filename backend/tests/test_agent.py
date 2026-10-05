@@ -1,6 +1,6 @@
 import json
 from datetime import timedelta
-from types import SimpleNamespace
+from app.agent.providers import parse_response, ProviderError
 import pytest
 from sqlalchemy import select
 from fastapi import HTTPException
@@ -17,28 +17,29 @@ class ScriptedModel:
 
     def __init__(self, steps):
         self.steps = iter(steps)
-        self.responses = self
         self.calls = []
 
-    def create(self, **kwargs):
+    def generate(self, **kwargs):
+        kwargs = {**kwargs, "input": kwargs["inputs"], "store": False}
         self.calls.append(kwargs)
         step = next(self.steps)
         if callable(step):
             step = step(kwargs)
         if isinstance(step, str):
-            return SimpleNamespace(output=[], output_text=step)
-        name, arguments = step
-        return SimpleNamespace(
-            output=[
-                SimpleNamespace(
-                    type="function_call",
-                    name=name,
-                    arguments=json.dumps(arguments),
-                    call_id=f"call_{len(self.calls)}",
-                )
-            ],
-            output_text="",
-        )
+            output = [
+                {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": step}]}
+            ]
+        else:
+            name, arguments = step
+            output = [
+                {
+                    "type": "function_call",
+                    "name": name,
+                    "arguments": json.dumps(arguments),
+                    "call_id": f"call_{len(self.calls)}",
+                }
+            ]
+        return parse_response({"status": "completed", "output": output})
 
 
 def service(database):
@@ -185,13 +186,11 @@ def test_preferences_are_only_proposed(authenticated, database):
 
 
 def test_external_failure_preserves_receipts(authenticated, database):
-    from openai import APIConnectionError
-    import httpx
 
     s = service(database)
 
     def fail(_):
-        raise APIConnectionError(request=httpx.Request("POST", "https://api.openai.com/v1/responses"))
+        raise ProviderError()
 
     model = ScriptedModel([("create_task", {"title": "Saved before outage"}), fail])
     result = chat(s, "Create a task", client=model)
@@ -202,21 +201,13 @@ def test_external_failure_preserves_receipts(authenticated, database):
 
 
 def test_provider_error_is_actionable_and_redacted(authenticated, database):
-    from openai import AuthenticationError
-    import httpx
 
     s = service(database)
 
     def fail(_):
-        raise AuthenticationError(
-            "secret-provider-body",
-            response=httpx.Response(
-                401, request=httpx.Request("POST", "https://api.openai.com/v1/responses")
-            ),
-            body={"message": "secret-provider-body"},
-        )
+        raise ProviderError(401)
 
     result = chat(s, "Hello", client=ScriptedModel([fail]))
-    assert "API key was rejected" in result["message"]
+    assert "AI service is temporarily unavailable" in result["message"]
     assert "secret-provider-body" not in result["message"]
     s.db.close()

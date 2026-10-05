@@ -110,4 +110,4 @@ async def http_error(request, exc):
 def health():
     with SessionLocal() as db:
         db.execute(text("SELECT 1 FROM users LIMIT 1"))
-    return {"status": "ok", "ai_configured": bool(settings().openai_api_key and settings().ai_enabled)}
+    return {"status": "ok", "ai_configured": settings().ai_configured}

@@ -2,7 +2,7 @@
 
 ## Architecture
 
-The existing `Reminder` model remains the source of truth. Scheduling creates five deterministic stages by default: 60, 30 and 5 minutes before start, 10 minutes after start, and 10 minutes before end. See [voice and reminder deployment](voice-reminders.md) for configuration and edge cases. Creation is not delivery: the separate worker changes due `PENDING` or `SNOOZED` reminders to `SENT`, records activity and queues push/email deliveries in the same transaction. The frontend never decides when a reminder is due. No OpenAI request is involved in execution.
+The existing `Reminder` model remains the source of truth. Scheduling creates five deterministic stages by default: 60, 30 and 5 minutes before start, 10 minutes after start, and 10 minutes before end. See [voice and reminder deployment](voice-reminders.md) for configuration and edge cases. Creation is not delivery: the separate worker changes due `PENDING` or `SNOOZED` reminders to `SENT`, records activity and queues push/email deliveries in the same transaction. The frontend never decides when a reminder is due. No AI provider request is involved in execution.
 
 In-app notifications use the reminder itself, avoiding a second notification inbox. `SENT` means published; `in_app_visible` controls whether it appears in the inbox. Visible `SENT` means unread in-app; `READ`, `DISMISSED`, `SNOOZED`, `COMPLETED` and `CANCELLED` retain useful history. Snooze increments an occurrence generation and keeps the original reminder time. Push failure is tracked separately on `NotificationDelivery`, so it never turns a successfully published in-app notification into a failed reminder.
 
@@ -48,7 +48,7 @@ From the project root:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-local.ps1
 ```
 
-Use `-SkipInstall` after dependencies are installed. The launcher migrates SQLite and starts Next.js, FastAPI and the independent reminder worker, with logs in the project root. Or run `python -m app.worker` from `backend` in a separate terminal alongside the existing API/frontend commands. Use a terminal with outbound network access for OpenAI and browser push.
+Use `-SkipInstall` after dependencies are installed. The launcher migrates SQLite and starts Next.js, FastAPI and the independent reminder worker, with logs in the project root. Or run `python -m app.worker` from `backend` in a separate terminal alongside the existing API/frontend commands. Use a terminal with outbound network access for the selected AI provider and browser push.
 
 Open `http://localhost:3000` consistently; `localhost` and `127.0.0.1` are different browser origins. Use a supported normal browser such as Chrome, Edge or Firefox if an embedded browser cannot obtain a push subscription.
 
@@ -97,7 +97,7 @@ Web Push references: [MDN Push API](https://developer.mozilla.org/en-US/docs/Web
 
 ## Troubleshooting
 
-- **AI unavailable:** this installation's backend was started under a network-restricted execution environment. A normal network-enabled launch restored the connection, verified both directly and in the Assistant UI. `python diagnose_ai.py` checks the configured model/tool schemas without revealing secrets or reading user tasks. The app now distinguishes connection, authentication, quota/rate-limit and model access errors. See [OpenAI error codes](https://developers.openai.com/api/docs/guides/error-codes).
+- **AI unavailable:** check the selected backend provider, its key, model access and network connectivity. User-facing errors are provider-neutral and never reveal provider response bodies. `python diagnose_ai.py` is an opt-in live connectivity check that uses the selected provider with no application tools. See [AI providers](ai-providers.md).
 - **No in-app notification:** check `worker-error.log`, confirm the worker is running against the same database, and inspect the reminder's timezone/time. A reminder is not delivered merely because its creation succeeded.
 - **Permission denied:** allow notifications in the browser's site settings, then reload Settings. Xenon never repeatedly invokes permission prompts.
 - **Permission granted but push off:** click Enable to register the device. Check VAPID configuration, push-provider access and browser support. Failed registration is shown as an error.

@@ -95,7 +95,7 @@ Before testing with a real attendee:
 
 1. Back up your database, apply migrations, and restart backend/frontend. Set the organizer's timezone in Settings.
 2. Connect Google Calendar in Settings and sync it. Reconnect only if credentials are expired/revoked or the existing Calendar permission is missing.
-3. Choose an attendee address you are authorized to invite. Use Calendar → **New meeting**, or ask the assistant for a timed meeting (AI needs the existing backend OpenAI configuration).
+3. Choose an attendee address you are authorized to invite. Use Calendar → **New meeting**, or ask the assistant for a timed meeting (AI needs the selected backend provider configuration; see [AI providers](ai-providers.md)).
 4. Supply missing emails and duration. Enable Google Meet if wanted. Check the organizer time, timezone, attendee addresses and proposed notifications.
 5. Click **Confirm & Send**. Verify the event in the organizer's primary Google Calendar and the invitation received by the attendee. No invitation should exist before this click.
 6. Have the attendee RSVP, then click **Refresh responses** or sync. Check the returned Meet link, including a possible pending state.

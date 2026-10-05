@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field, field_validator
 
@@ -9,9 +10,10 @@ class Settings(BaseSettings):
     environment: str = "development"
     secret_key: str = ""
     frontend_url: str = "http://localhost:3000"
-    openai_api_key: str = ""
+    ai_provider: Literal["perplexity"] = "perplexity"
+    perplexity_api_key: str = ""
+    perplexity_model: str = Field(default="perplexity/sonar", min_length=1)
     ai_enabled: bool = True
-    openai_model: str = "gpt-4.1-mini"
     google_client_id: str = ""
     google_client_secret: str = ""
     google_redirect_uri: str = "http://localhost:3000/api/calendar/google/callback"
@@ -34,6 +36,10 @@ class Settings(BaseSettings):
     email_from: str = ""
     resend_api_key: str = ""
     reminder_poll_interval_seconds: int = Field(default=10, ge=1, le=300)
+
+    @property
+    def ai_configured(self):
+        return bool(self.ai_enabled and self.perplexity_api_key.strip())
 
     @field_validator("database_url")
     @classmethod

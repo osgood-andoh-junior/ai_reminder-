@@ -71,11 +71,11 @@ def connection(db, user, **extra):
 def model(candidates):
     calls = []
 
-    def create(**kwargs):
+    def generate(**kwargs):
         calls.append(kwargs)
-        return SimpleNamespace(output_text=json.dumps({"commitments": candidates}))
+        return SimpleNamespace(text=json.dumps({"commitments": candidates}))
 
-    return SimpleNamespace(responses=SimpleNamespace(create=create), calls=calls)
+    return SimpleNamespace(generate=generate, calls=calls)
 
 
 def email(text="Your assignment is due tomorrow at 11:59 PM."):
@@ -213,7 +213,7 @@ def test_extraction_relative_absolute_ambiguous_and_no_tools():
     value = extract(email(), TimeContext(NOW, "Africa/Accra"), client)[0]
     assert value["deadline"] == datetime(2026, 9, 30, 23, 59, tzinfo=timezone.utc)
     assert value["estimated_duration_minutes"] is None
-    assert client.calls[0]["store"] is False and "tools" not in client.calls[0]
+    assert "schema" in client.calls[0] and "tools" not in client.calls[0]
     text = "Your interview is October 7 at 10 AM until 11 AM."
     value = extract(
         email(text),
@@ -244,12 +244,9 @@ def test_extraction_relative_absolute_ambiguous_and_no_tools():
 def test_hallucinated_dates_and_ai_failure_never_become_candidates(monkeypatch):
     with pytest.raises(ExtractionUnavailable):
         extract(email(), TimeContext(NOW, "UTC"), model([candidate(date_phrase="2030-01-01")]))
-    monkeypatch.setattr(settings(), "openai_api_key", "")
     with pytest.raises(ExtractionUnavailable, match="ai_unavailable"):
         extract(email(), TimeContext(NOW, "UTC"))
-    bad = SimpleNamespace(
-        responses=SimpleNamespace(create=lambda **k: SimpleNamespace(output_text="not JSON"))
-    )
+    bad = SimpleNamespace(generate=lambda **k: SimpleNamespace(text="not JSON"))
     with pytest.raises(ExtractionUnavailable):
         extract(email(), TimeContext(NOW, "UTC"), bad)
 

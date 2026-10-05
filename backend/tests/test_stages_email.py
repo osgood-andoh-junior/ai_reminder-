@@ -141,7 +141,6 @@ def test_email_preferences_retry_idempotency(authenticated, database, enabled, o
 
 def test_unconfigured_email_and_expired_retry(authenticated, database, monkeypatch):
     monkeypatch.setattr(settings(), "email_provider", "")
-    monkeypatch.setattr(settings(), "openai_api_key", "")
     with database() as db:
         service, _, _ = setup_session(db)
         service.preferences().email_notifications_enabled = True
@@ -282,7 +281,7 @@ def test_worker_email_claim_and_crash_recovery(authenticated, database):
     assert fake.calls == [(saved_payload, saved_key)]
 
 
-def test_actual_worker_email_without_openai(authenticated, database, monkeypatch):
+def test_actual_worker_email_without_ai(authenticated, database, monkeypatch):
     from app.worker import process_due
 
     fake = FakeEmail()

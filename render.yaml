@@ -26,10 +26,14 @@ services:
         value: "true"
       - key: FRONTEND_URL
         sync: false
-      - key: OPENAI_API_KEY
-        value: ""
-      - key: OPENAI_MODEL
-        value: gpt-4.1-mini
+      - key: AI_PROVIDER
+        value: perplexity
+      - key: AI_ENABLED
+        value: "true"
+      - key: PERPLEXITY_API_KEY
+        sync: false
+      - key: PERPLEXITY_MODEL
+        value: perplexity/sonar
       - key: EMAIL_PROVIDER
         value: ""
       - key: EMAIL_FROM
