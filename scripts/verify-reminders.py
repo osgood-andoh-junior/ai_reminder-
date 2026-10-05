@@ -27,6 +27,7 @@ env = {
     "ENVIRONMENT": "test",
     "AI_ENABLED": "false",
     "OPENAI_API_KEY": "",
+    "PERPLEXITY_API_KEY": "",
     "EMAIL_PROVIDER": "",
     "EMAIL_FROM": "",
     "RESEND_API_KEY": "",

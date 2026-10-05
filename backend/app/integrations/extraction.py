@@ -4,7 +4,7 @@ import json
 import re
 from datetime import date, datetime
 from typing import Literal
-from openai import OpenAI, OpenAIError
+from app.agent.providers import ProviderError, get_provider
 from pydantic import Field, ValidationError
 from app.schemas import Input
 from app.core.config import settings
@@ -175,19 +175,16 @@ def extract(message, context, client=None):
     text = (message.subject + "\n" + (message.text or message.snippet))[: settings().gmail_message_max_chars]
     if not text.strip():
         return []
-    if client is None and (not settings().openai_api_key or not settings().ai_enabled):
+    if client is None and not settings().ai_configured:
         raise ExtractionUnavailable("ai_unavailable")
-    client = client or OpenAI(api_key=settings().openai_api_key, timeout=10, max_retries=0)
     try:
-        response = client.responses.create(
-            model=settings().openai_model,
+        provider = get_provider(settings(), client=client, timeout=10)
+        response = provider.generate(
             instructions=PROMPT + "\nSchema: " + json.dumps(Extraction.model_json_schema()),
-            input=json.dumps({"server_time": context.json(), "email": text}),
-            store=False,
-            max_output_tokens=1800,
-            text={"format": {"type": "json_object"}},
+            inputs=json.dumps({"server_time": context.json(), "email": text}),
+            schema=Extraction.model_json_schema(),
         )
-        candidates = Extraction.model_validate_json(response.output_text).commitments
+        candidates = Extraction.model_validate_json(response.text).commitments
         return [resolve_candidate(c, text, context) for c in candidates]
-    except (OpenAIError, ValidationError, ValueError, TypeError):
+    except (ProviderError, ValidationError, ValueError, TypeError):
         raise ExtractionUnavailable("extraction_failed") from None

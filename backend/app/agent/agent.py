@@ -1,7 +1,7 @@
 import json
 import logging
 from fastapi import HTTPException
-from openai import OpenAI, OpenAIError
+from app.agent.providers import ProviderError, UNAVAILABLE, get_provider
 from pydantic import ValidationError
 from app.core.config import settings
 from app.db.models import ChatMessage
@@ -55,13 +55,10 @@ No invitation or change is sent until the user confirms the persisted proposal t
 
 def chat(service, message, client=None):
     config = settings()
-    if (not config.openai_api_key or not config.ai_enabled) and client is None:
-        raise HTTPException(
-            503,
-            "The AI assistant is not configured yet. Add OPENAI_API_KEY on the backend. "
-            "You can still manage tasks and use Plan schedule without it.",
-        )
-    client = client or OpenAI(api_key=config.openai_api_key, timeout=40, max_retries=1)
+    try:
+        provider = get_provider(config, client=client)
+    except ProviderError:
+        raise HTTPException(503, UNAVAILABLE + " You can still manage tasks and use Plan schedule.") from None
     # Capture once per chat request, including when callers reuse an Application.
     service.now = utcnow()
     try:
@@ -87,24 +84,25 @@ def chat(service, message, client=None):
     )
     try:
         for _ in range(config.agent_max_iterations):
-            result = client.responses.create(
-                model=config.openai_model,
+            result = provider.generate(
                 instructions=instructions,
-                input=inputs,
+                inputs=inputs,
                 tools=registry.definitions(),
-                parallel_tool_calls=False,
-                store=False,
-                max_output_tokens=1800,
             )
             inputs.extend(result.output)
-            calls = [item for item in result.output if item.type == "function_call"]
+            calls = result.calls
             if not calls:
-                text = result.output_text or "Please review the action results below."
+                text = result.text
                 break
-            for call in calls[:4]:
+            if len(calls) > 4:
+                raise ProviderError()
+            for call in calls:
                 try:
                     with service.db.begin_nested():
-                        output = registry.execute(call.name, json.loads(call.arguments))
+                        arguments = json.loads(call.arguments)
+                        if not isinstance(arguments, dict):
+                            raise TypeError("Tool arguments must be an object")
+                        output = registry.execute(call.name, arguments)
                     service.db.commit()
                     actions.append({"tool": call.name, "ok": True, "result": output})
                     logger.info("agent_tool user=%s tool=%s ok=true", service.user.id, call.name)
@@ -126,30 +124,12 @@ def chat(service, message, client=None):
                         "output": json.dumps(output, default=str),
                     }
                 )
-    except OpenAIError as exc:
+    except ProviderError as exc:
         # Never log provider bodies: authentication errors can contain key fragments.
-        status = getattr(exc, "status_code", None)
-        code = getattr(exc, "code", None)
-        logger.warning(
-            "OpenAI request failed user=%s type=%s status=%s", service.user.id, type(exc).__name__, status
+        logger.warning("AI request failed user=%s status=%s", service.user.id, exc.status)
+        text = (
+            UNAVAILABLE + " Any successful actions listed below were saved. Tasks and reminders still work."
         )
-        if status == 401:
-            reason = "The backend API key was rejected. Update OPENAI_API_KEY and restart the backend."
-        elif status == 429:
-            reason = (
-                "OpenAI API credits or quota are exhausted. Check the API project's billing."
-                if code == "insufficient_quota"
-                else "OpenAI is rate-limiting requests. Please retry shortly."
-            )
-        elif status in {403, 404}:
-            reason = "The configured OpenAI model is not accessible to this API project. Check OPENAI_MODEL and project permissions."
-        elif status == 400:
-            reason = "OpenAI rejected the assistant request. Check the backend model configuration."
-        elif status is None:
-            reason = "The AI service is unavailable because the backend cannot connect to OpenAI. Check its internet access, firewall and proxy, then retry."
-        else:
-            reason = "The AI service is temporarily unavailable. Please retry shortly."
-        text = reason + " Any successful actions listed below were saved. Tasks and reminders still work."
     if failures:
         text = "Some operations failed. Check the action results below.\n\n" + text
     service.db.add(ChatMessage(user_id=service.user.id, role="assistant", content=text, actions=actions))

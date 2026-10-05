@@ -217,6 +217,6 @@ def test_provider_error_is_actionable_and_redacted(authenticated, database):
         )
 
     result = chat(s, "Hello", client=ScriptedModel([fail]))
-    assert "API key was rejected" in result["message"]
+    assert "AI service is temporarily unavailable" in result["message"]
     assert "secret-provider-body" not in result["message"]
     s.db.close()
