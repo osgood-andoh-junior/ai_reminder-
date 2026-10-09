@@ -11,6 +11,8 @@ def offline_ai_configuration(monkeypatch):
     """Never borrow live model credentials from a developer's environment."""
     from app.core.config import settings
 
+    monkeypatch.setattr(settings(), "email_provider", "")
+    monkeypatch.setattr(settings(), "resend_api_key", "")
     monkeypatch.setattr(settings(), "ai_provider", "perplexity")
     monkeypatch.setattr(settings(), "perplexity_api_key", "")
     monkeypatch.setattr(settings(), "perplexity_model", "perplexity/sonar")

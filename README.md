@@ -339,3 +339,7 @@ The assistant supports microphone input, editable transcripts, optional response
 Scheduled task sessions receive five deterministic reminder stages by default. Settings controls each stage and in-app, browser and email delivery. Task overrides are available through the assistant (with confirmation) and the authenticated task reminder-preferences API. Email goes from a configured application sender to the registered account address, using the existing durable worker/outbox.
 
 See [voice/reminder setup, migration, local checks and Render/Vercel deployment](docs/voice-reminders.md). No additional dependencies are required. Optional email uses `EMAIL_PROVIDER=resend`, `EMAIL_FROM`, and server-only `RESEND_API_KEY` on both API and worker. Missing optional services do not prevent other notification channels from working.
+
+## Signup email reminders
+
+See [implementation, migration, deployment and production verification](docs/signup-email-reminders.md). Registered email reminders require email verification and explicit opt-in in Settings, independently of Google integrations.

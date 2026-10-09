@@ -56,7 +56,13 @@ async def boundaries(request: Request, call_next):
     host = request.client.host if request.client else "unknown"
     category = (
         "auth"
-        if request.url.path in {"/api/auth/login", "/api/auth/register"}
+        if request.url.path
+        in {
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/email-verification/request",
+            "/api/auth/email-verification/confirm",
+        }
         else "agent"
         if request.url.path == "/api/agent/chat"
         else "api"

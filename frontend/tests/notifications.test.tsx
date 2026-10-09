@@ -7,9 +7,14 @@ import Reminders from "@/app/reminders/page";
 import { api } from "@/lib/api";
 import type { Reminder } from "@/lib/types";
 
+const account = vi.hoisted(() => ({
+  email: "test@example.com",
+  email_verified_at: null as string | null,
+}));
+
 vi.mock("@/components/provider", () => ({
   useAuth: () => ({
-    user: { email: "test@example.com" },
+    user: account,
     preferences: { timezone: "Africa/Accra", browser_notifications_enabled: false },
     refresh: vi.fn(),
   }),
@@ -25,6 +30,7 @@ vi.mock("@/lib/api", () => ({
     subscribePush: vi.fn(),
     notificationPreferences: vi.fn(),
     reminders: vi.fn(),
+    requestVerification: vi.fn(),
   },
 }));
 const reminder: Reminder = {
@@ -53,6 +59,7 @@ beforeEach(() => {
     this.removeAttribute("open");
   };
   vi.clearAllMocks();
+  account.email_verified_at = null;
   vi.mocked(api.unreadCount).mockResolvedValue({ count: 2 });
   vi.mocked(api.recentReminders).mockResolvedValue([reminder]);
   vi.mocked(api.reminders).mockResolvedValue([
@@ -191,7 +198,8 @@ it("saves stage and in-app preferences", async () => {
   );
 });
 
-it("uses the signed-in email and enables configured email delivery", async () => {
+it("uses the signed-in verified email and enables configured email delivery", async () => {
+  account.email_verified_at = "2030-01-01T00:00:00Z";
   vi.mocked(api.notificationConfig).mockResolvedValue({
     push_configured: false,
     vapid_public_key: "",
@@ -206,4 +214,22 @@ it("uses the signed-in email and enables configured email delivery", async () =>
   await waitFor(() =>
     expect(api.notificationPreferences).toHaveBeenCalledWith({ email_notifications_enabled: true }),
   );
+});
+
+it("requires verification before enabling email and reports resend failures", async () => {
+  vi.mocked(api.notificationConfig).mockResolvedValue({
+    push_configured: false,
+    vapid_public_key: "",
+    email_configured: true,
+  });
+  vi.mocked(api.requestVerification).mockResolvedValue({
+    message: "Verification email could not be delivered. Please retry in one minute.",
+  });
+  render(<NotificationSettings />);
+  const button = await screen.findByRole("button", { name: "Send or resend verification email" });
+  await waitFor(() => expect((button as HTMLButtonElement).disabled).toBe(false));
+  expect((screen.getByLabelText("Email reminders") as HTMLInputElement).disabled).toBe(true);
+  fireEvent.click(button);
+  expect(await screen.findByText(/could not be delivered/)).toBeTruthy();
+  expect(api.notificationPreferences).not.toHaveBeenCalled();
 });

@@ -95,6 +95,10 @@ export const api = {
       timezone: string;
       utc_offset: string;
     }>("/time"),
+  requestVerification: () =>
+    request<{ message: string }>("/auth/email-verification/request", "POST"),
+  confirmVerification: (token: string) =>
+    request<{ message: string }>("/auth/email-verification/confirm", "POST", { token }),
   me: () => request<User>("/auth/me"),
   login: (body: unknown) => request<User>("/auth/login", "POST", body),
   register: (body: unknown) => request<User>("/auth/register", "POST", body),
@@ -109,7 +113,12 @@ export const api = {
     request<Event>(id ? `/events/${id}` : "/events", id ? "PUT" : "POST", body),
   deleteEvent: (id: number) => request(`/events/${id}`, "DELETE"),
   preferences: () => request<Preferences>("/preferences"),
-  savePreferences: (body: Preferences) => request<Preferences>("/preferences", "PUT", body),
+  savePreferences: (body: Preferences) => {
+    const values: Partial<Preferences> = { ...body };
+    // Email consent belongs to the dedicated notification control.
+    delete values.email_notifications_enabled;
+    return request<Preferences>("/preferences", "PUT", values);
+  },
   suggestions: () =>
     request<{ message: string; changes: Partial<Preferences> }[]>("/preferences/suggestions"),
   reminders: () => request<Reminder[]>("/reminders"),
@@ -120,9 +129,16 @@ export const api = {
   snoozeReminder: (id: number, body: { minutes?: number; until?: string }) =>
     request<Reminder>(`/reminders/${id}/snooze`, "POST", body),
   notificationConfig: () =>
-    request<{ push_configured: boolean; vapid_public_key: string; email_configured: boolean }>(
-      "/notifications/config",
-    ),
+    request<{
+      push_configured: boolean;
+      vapid_public_key: string;
+      email_configured: boolean;
+      email_last_delivery?: {
+        status: string;
+        last_error: string | null;
+        sent_at: string | null;
+      } | null;
+    }>("/notifications/config"),
   notificationPreferences: (body: Partial<Preferences>) =>
     request<Preferences>("/preferences/notifications", "PATCH", body),
   subscribePush: (body: unknown) => request("/notifications/subscriptions", "POST", body),

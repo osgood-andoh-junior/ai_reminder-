@@ -23,6 +23,11 @@ export function NotificationSettings() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   useEffect(() => {
+    const signupMessage = window.sessionStorage.getItem("verification-message");
+    if (signupMessage) {
+      setNotice(signupMessage);
+      window.sessionStorage.removeItem("verification-message");
+    }
     setSupported(pushSupported());
     if ("Notification" in window) setPermission(Notification.permission);
     void api
@@ -35,6 +40,17 @@ export function NotificationSettings() {
         .then(async (r) => setSubscribed(Boolean(await r?.pushManager.getSubscription())))
         .catch(() => {});
   }, []);
+  async function verifyEmail() {
+    setBusy(true);
+    setError("");
+    try {
+      setNotice((await api.requestVerification()).message);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   async function enable() {
     setBusy(true);
     setError("");
@@ -153,13 +169,45 @@ export function NotificationSettings() {
           <label>
             <input
               type="checkbox"
-              disabled={!config?.email_configured && !preferences?.email_notifications_enabled}
-              checked={preferences?.email_notifications_enabled ?? false}
+              disabled={
+                (!user?.email_verified_at || !config?.email_configured) &&
+                !(preferences?.email_notifications_enabled && user?.email_reminders_opted_in_at)
+              }
+              checked={Boolean(
+                preferences?.email_notifications_enabled && user?.email_reminders_opted_in_at,
+              )}
               onChange={(e) => void save({ email_notifications_enabled: e.target.checked })}
             />{" "}
             Email reminders
           </label>
           <p>Email address: {user?.email}</p>
+          <p role="status">
+            {!user?.email_verified_at
+              ? "Verify your email to receive task reminders directly in your inbox."
+              : preferences?.email_notifications_enabled && user?.email_reminders_opted_in_at
+                ? "Email verified, reminders enabled."
+                : "Email verified, reminders disabled."}
+          </p>
+          {!user?.email_verified_at && (
+            <button
+              type="button"
+              disabled={busy || !config?.email_configured}
+              onClick={verifyEmail}
+            >
+              Send or resend verification email
+            </button>
+          )}
+          {config?.email_last_delivery && (
+            <p role="status">
+              Latest reminder email:{" "}
+              {config.email_last_delivery.status === "SENT"
+                ? "Accepted by email provider (inbox receipt unconfirmed)"
+                : config.email_last_delivery.status}
+              {config.email_last_delivery.last_error
+                ? ` (${config.email_last_delivery.last_error})`
+                : ""}
+            </p>
+          )}
           {!config && <p role="status">Checking email availability…</p>}
           {config && !config.email_configured && (
             <p className="form-hint">

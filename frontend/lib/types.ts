@@ -1,4 +1,11 @@
-export type User = { id: number; name: string; email: string };
+export type User = {
+  id: number;
+  name: string;
+  email: string;
+  email_verified_at?: string | null;
+  email_reminders_opted_in_at?: string | null;
+  verification_message?: string;
+};
 export type Task = {
   id: number;
   title: string;

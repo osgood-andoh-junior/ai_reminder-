@@ -35,11 +35,11 @@ services:
       - key: PERPLEXITY_MODEL
         value: perplexity/sonar
       - key: EMAIL_PROVIDER
-        value: ""
+        sync: false
       - key: EMAIL_FROM
-        value: ""
+        sync: false
       - key: RESEND_API_KEY
-        value: ""
+        sync: false
       - key: VAPID_PUBLIC_KEY
         sync: false
       - key: VAPID_PRIVATE_KEY
@@ -53,16 +53,18 @@ services:
     buildCommand: pip install -r requirements-lock.txt
     startCommand: python -m app.worker
     envVars:
+      - key: FRONTEND_URL
+        sync: false
       - key: PYTHON_VERSION
         value: 3.12.10
       - key: DATABASE_URL
         fromDatabase: {name: tempo-db, property: connectionString}
       - key: EMAIL_PROVIDER
-        value: ""
+        sync: false
       - key: EMAIL_FROM
-        value: ""
+        sync: false
       - key: RESEND_API_KEY
-        value: ""
+        sync: false
       - key: VAPID_PUBLIC_KEY
         sync: false
       - key: VAPID_PRIVATE_KEY

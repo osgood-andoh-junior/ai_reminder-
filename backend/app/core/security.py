@@ -44,7 +44,7 @@ def new_session(db, user, response):
     )
 
 
-def current_user(request: Request, db=Depends(get_db)):
+def current_user(request: Request, db=Depends(get_db, scope="function")):
     token = request.cookies.get("session")
     if not token:
         raise HTTPException(401, "Please sign in")

@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 from sqlalchemy import select, update, or_, and_
 from app.db.database import utcnow
 from app.db.models import (
@@ -49,8 +50,16 @@ def publish_due(db, now=None):
         preference = db.scalar(select(UserPreference).where(UserPreference.user_id == user_id))
         reminder.in_app_visible = preference.in_app_notifications_enabled
         task = db.get(Task, reminder.task_id, populate_existing=True) if reminder.task_id else None
-        if preference.email_notifications_enabled and (not task or task.email_reminders_enabled is not False):
-            user = db.get(User, user_id)
+        user = db.get(User, user_id)
+        session = db.get(ScheduledTask, reminder.scheduled_task_id) if reminder.scheduled_task_id else None
+        instant = session.start_time if session else reminder.reminder_time
+        local_time = instant.astimezone(ZoneInfo(preference.timezone)).strftime("%Y-%m-%d %H:%M %z")
+        if (
+            user.email_verified_at
+            and user.email_reminders_opted_in_at
+            and preference.email_notifications_enabled
+            and (not task or task.email_reminders_enabled is not False)
+        ):
             db.add(
                 NotificationDelivery(
                     user_id=user_id,
@@ -64,7 +73,15 @@ def publish_due(db, now=None):
                         "from": settings().email_from,
                         "to": [user.email],
                         "subject": f"Xenon: {reminder.title}",
-                        "text": reminder.message,
+                        "text": reminder.message
+                        + "\nWhen: "
+                        + local_time
+                        + " ("
+                        + preference.timezone
+                        + ")"
+                        + "\n\nOpen Xenon: "
+                        + settings().frontend_url.rstrip("/")
+                        + "/reminders",
                     },
                 )
             )
@@ -148,6 +165,7 @@ def process_outbox(db, channel=None, now=None, email_channel=None):
             .where(UserPreference.user_id == item.user_id)
             .execution_options(populate_existing=True)
         )
+        user = db.get(User, item.user_id, populate_existing=True)
         if (
             not reminder
             or reminder.user_id != item.user_id
@@ -164,7 +182,12 @@ def process_outbox(db, channel=None, now=None, email_channel=None):
             or (
                 item.channel == "email"
                 and (
-                    not preference.email_notifications_enabled
+                    not user
+                    or not user.email_verified_at
+                    or not user.email_reminders_opted_in_at
+                    or not item.payload
+                    or item.payload.get("to") != [user.email]
+                    or not preference.email_notifications_enabled
                     or (reminder.task_id and db.get(Task, reminder.task_id).email_reminders_enabled is False)
                 )
             )

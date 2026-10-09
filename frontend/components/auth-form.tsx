@@ -18,9 +18,15 @@ export function AuthForm({ register = false }: { register?: boolean }) {
     setError("");
     const data = Object.fromEntries(new FormData(e.currentTarget));
     try {
-      await (register ? api.register(data) : api.login(data));
+      const result = await (register ? api.register(data) : api.login(data));
       await refresh();
-      router.push("/dashboard");
+      if (register) {
+        window.sessionStorage.setItem(
+          "verification-message",
+          result.verification_message || "Verify your email in Settings to receive reminders.",
+        );
+        router.push("/settings");
+      } else router.push("/dashboard");
     } catch (e) {
       setError((e as Error).message);
     } finally {
