@@ -16,6 +16,8 @@ class User(Stamp, Base):
     name: Mapped[str] = mapped_column(String(100))
     password_hash: Mapped[str] = mapped_column(String(255))
     revision: Mapped[int] = mapped_column(Integer, default=0)
+    email_verified_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    email_reminders_opted_in_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
 
 
 class Owned:
@@ -27,6 +29,16 @@ class AuthSession(Owned, Base):
     __tablename__ = "auth_sessions"
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     expires_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+
+
+class EmailVerification(Owned, Base):
+    __tablename__ = "email_verifications"
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    email: Mapped[str] = mapped_column(String(254))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utcnow)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    consumed_at: Mapped[datetime | None] = mapped_column(UTCDateTime(), nullable=True)
+    delivery_status: Mapped[str] = mapped_column(String(20), default="PENDING")
 
 
 class UserPreference(Owned, Stamp, Base):

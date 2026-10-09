@@ -72,6 +72,13 @@ class Application:
     def update_preferences(self, data):
         self.lock()
         pref = self.preferences()
+        if data.model_dump(exclude_unset=True).get("email_notifications_enabled") is True:
+            if not self.user.email_verified_at or not self.user.email_reminders_opted_in_at:
+                raise HTTPException(
+                    409, "Verify your email and enable reminders in notification Settings first."
+                )
+        if data.model_dump(exclude_unset=True).get("email_notifications_enabled") is False:
+            self.user.email_reminders_opted_in_at = None
         for key, value in data.model_dump(exclude_unset=True).items():
             setattr(pref, key, value)
         self.db.flush()

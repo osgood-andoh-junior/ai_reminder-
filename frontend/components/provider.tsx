@@ -51,7 +51,7 @@ export function Provider({ children }: { children: React.ReactNode }) {
     window.addEventListener("auth-expired", expired);
     return () => window.removeEventListener("auth-expired", expired);
   }, [refresh]);
-  const publicPage = ["/login", "/register"].includes(pathname);
+  const publicPage = ["/login", "/register", "/verify-email"].includes(pathname);
   useEffect(() => {
     if (!loading && !user && !publicPage && !error) router.replace("/login");
   }, [loading, user, publicPage, router, error]);

@@ -1,10 +1,11 @@
 """Run independently of the web process: python -m app.worker."""
 
+from datetime import timedelta
 import logging
 import time
 from sqlalchemy import delete
 from app.db.database import SessionLocal, utcnow
-from app.db.models import AuthSession, OAuthState
+from app.db.models import AuthSession, OAuthState, EmailVerification
 from app.notifications.in_app import InAppNotifications
 from app.notifications.service import process_outbox
 from app.core.config import settings
@@ -17,6 +18,7 @@ def process_due(db):
     count = InAppNotifications().publish_due(db)
     db.execute(delete(AuthSession).where(AuthSession.expires_at < utcnow()))
     db.execute(delete(OAuthState).where(OAuthState.expires_at < utcnow()))
+    db.execute(delete(EmailVerification).where(EmailVerification.expires_at < utcnow() - timedelta(days=1)))
     db.commit()
     process_outbox(db)
     return count

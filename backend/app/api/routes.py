@@ -24,7 +24,7 @@ from app.agent.agent import chat
 router = APIRouter(prefix="/api")
 
 
-def application(db=Depends(get_db), user=Depends(current_user)):
+def application(db=Depends(get_db, scope="function"), user=Depends(current_user)):
     return Application(db, user)
 
 
@@ -38,7 +38,7 @@ def current_time(response: Response, s: Service):
 
 
 @router.post("/auth/register", status_code=201)
-def register(data: schemas.Register, response: Response, db=Depends(get_db)):
+def register(data: schemas.Register, response: Response, db=Depends(get_db, scope="function")):
     user = User(email=str(data.email).lower(), name=data.name, password_hash=hasher.hash(data.password))
     try:
         db.add(user)
@@ -48,11 +48,15 @@ def register(data: schemas.Register, response: Response, db=Depends(get_db)):
         raise HTTPException(409, "An account with this email already exists") from None
     db.add(UserPreference(user_id=user.id))
     new_session(db, user, response)
-    return serialize(user)
+    from app.services.email_verification import request_verification
+
+    result = serialize(user)
+    result["verification_message"] = request_verification(Application(db, user))["message"]
+    return result
 
 
 @router.post("/auth/login")
-def login(data: schemas.Login, response: Response, db=Depends(get_db)):
+def login(data: schemas.Login, response: Response, db=Depends(get_db, scope="function")):
     user = db.scalar(select(User).where(User.email == str(data.email).lower()))
     valid = verify(data.password, user.password_hash if user else DUMMY_HASH)
     if not user or not valid:
@@ -68,8 +72,22 @@ def me(user=Depends(current_user)):
     return serialize(user)
 
 
+@router.post("/auth/email-verification/request")
+def request_email_verification(s: Service):
+    from app.services.email_verification import request_verification
+
+    return request_verification(s)
+
+
+@router.post("/auth/email-verification/confirm")
+def confirm_email_verification(data: schemas.EmailVerificationInput, s: Service):
+    from app.services.email_verification import consume_verification
+
+    return consume_verification(s, data.token)
+
+
 @router.post("/auth/logout")
-def logout(request: Request, response: Response, db=Depends(get_db)):
+def logout(request: Request, response: Response, db=Depends(get_db, scope="function")):
     db.execute(
         delete(AuthSession).where(AuthSession.token_hash == digest(request.cookies.get("session", "")))
     )
@@ -239,18 +257,39 @@ def notification_config(s: Service):
     from app.notifications.email import email_configured
 
     config = settings()
+    latest = s.db.scalar(
+        select(NotificationDelivery)
+        .where(NotificationDelivery.user_id == s.user.id, NotificationDelivery.channel == "email")
+        .order_by(NotificationDelivery.id.desc())
+        .limit(1)
+    )
     return {
         "push_configured": bool(
             config.vapid_public_key and config.vapid_private_key and config.vapid_subject
         ),
         "vapid_public_key": config.vapid_public_key,
         "email_configured": email_configured(),
+        "email_last_delivery": {
+            "status": latest.status,
+            "last_error": latest.last_error,
+            "sent_at": latest.sent_at,
+        }
+        if latest
+        else None,
     }
 
 
 @router.patch("/preferences/notifications")
 def notification_preferences(data: schemas.NotificationPreferences, s: Service):
     values = {k: v for k, v in data.model_dump(exclude_unset=True).items() if v is not None}
+    if values.get("email_notifications_enabled") is True:
+        if not s.user.email_verified_at:
+            raise HTTPException(409, "Verify your email before enabling email reminders.")
+        s.lock()
+        s.user.email_reminders_opted_in_at = utcnow()
+    elif values.get("email_notifications_enabled") is False:
+        s.lock()
+        s.user.email_reminders_opted_in_at = None
     return s.update_preferences(schemas.PreferenceInput(**values))
 
 

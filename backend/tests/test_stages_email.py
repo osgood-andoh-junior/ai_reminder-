@@ -30,6 +30,8 @@ def test_offsets_timezone_short_and_past():
 
 def setup_session(db):
     user = db.scalar(select(User))
+    user.email_verified_at = utcnow()
+    user.email_reminders_opted_in_at = utcnow()
     service = Application(db, user)
     task = Task(user_id=user.id, title="DSP", status="SCHEDULED")
     db.add(task)
